@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { authenticate, authCookieMaxAge, authCookieName, sessionCookieValue } from "@/lib/auth";
+import { authenticate, authCookieName, sessionCookieOptions, sessionCookieValue } from "@/lib/auth";
 
 export async function POST(req: Request) {
   try {
@@ -12,13 +12,7 @@ export async function POST(req: Request) {
     if (!user) return NextResponse.json({ error: "Invalid credentials." }, { status: 401 });
 
     const res = NextResponse.json({ user });
-    res.cookies.set(authCookieName, sessionCookieValue(user), {
-      httpOnly: true,
-      sameSite: "lax",
-      secure: process.env.NODE_ENV === "production",
-      path: "/",
-      maxAge: authCookieMaxAge,
-    });
+    res.cookies.set(authCookieName, sessionCookieValue(user), sessionCookieOptions());
     return res;
   } catch {
     return NextResponse.json({ error: "Login failed. Check Supabase env vars and app_users table." }, { status: 500 });

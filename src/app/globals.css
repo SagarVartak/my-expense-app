@@ -41,6 +41,52 @@ body {
   border-bottom: 1px solid var(--border);
   backdrop-filter: blur(14px);
 }
+.app-top-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+.app-refresh-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: rgba(5, 11, 22, 0.55);
+  color: var(--muted);
+  cursor: pointer;
+  transition:
+    background 120ms ease,
+    color 120ms ease,
+    border-color 120ms ease;
+}
+.app-refresh-btn:hover:not(:disabled) {
+  color: var(--text);
+  background: rgba(78, 161, 255, 0.18);
+  border-color: rgba(78, 161, 255, 0.35);
+  transform: none;
+}
+.app-refresh-btn:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+.app-refresh-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.app-refresh-icon--spin {
+  animation: app-refresh-spin 0.85s linear infinite;
+}
+@keyframes app-refresh-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
 .app-brand {
   display: flex;
   flex-direction: column;
@@ -442,4 +488,95 @@ tbody tr:hover {
   inset: 0;
   opacity: 0;
   cursor: pointer;
+}
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(4, 8, 18, 0.72);
+  backdrop-filter: blur(8px);
+}
+/* Portaled modals: above sticky header (40) + main content, below toast (10050) */
+.modal-overlay--portal {
+  z-index: 10040;
+  background: rgba(4, 8, 18, 0.82);
+  backdrop-filter: blur(12px);
+}
+.modal-panel {
+  width: 100%;
+  max-width: 420px;
+  max-height: 90vh;
+  overflow: auto;
+}
+.modal-panel--account {
+  position: relative;
+  z-index: 1;
+  max-height: min(90vh, 720px);
+  background: linear-gradient(180deg, rgba(20, 32, 52, 0.98), rgba(14, 22, 38, 0.96)) !important;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow:
+    var(--shadow),
+    0 0 0 1px rgba(96, 173, 255, 0.12);
+}
+.profile-dropdown-actions-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.profile-dropdown-actions-stack button {
+  width: 100%;
+}
+.btn-ghost {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border);
+}
+.btn-ghost:hover {
+  background: rgba(255, 255, 255, 0.1);
+  transform: none;
+}
+
+/* React Toastify — match app shell / cards */
+.app-toastify-container {
+  --toastify-z-index: 10050;
+  --toastify-toast-bd-radius: 14px;
+  --toastify-toast-min-height: 52px;
+}
+.app-toast {
+  background: linear-gradient(180deg, rgba(17, 27, 46, 0.96), rgba(12, 20, 36, 0.92)) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius) !important;
+  box-shadow: var(--shadow) !important;
+  color: var(--text) !important;
+  font-family: inherit !important;
+  font-size: 14px !important;
+  line-height: 1.35 !important;
+  backdrop-filter: blur(12px);
+}
+.app-toast .Toastify__toast-body {
+  padding: 2px 6px 0 0 !important;
+}
+.app-toast-progress {
+  background: linear-gradient(90deg, rgba(96, 173, 255, 0.95), rgba(96, 173, 255, 0.35)) !important;
+}
+.Toastify__toast--success.app-toast {
+  border-color: rgba(74, 222, 128, 0.42) !important;
+}
+.Toastify__toast--error.app-toast {
+  border-color: rgba(255, 146, 166, 0.45) !important;
+}
+.Toastify__toast--info.app-toast,
+.Toastify__toast--warning.app-toast {
+  border-color: rgba(96, 173, 255, 0.38) !important;
+}
+.app-toastify-container .Toastify__close-button {
+  color: var(--muted) !important;
+  opacity: 0.9;
+}
+.app-toastify-container .Toastify__close-button:hover {
+  color: var(--text) !important;
+  opacity: 1;
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "react-toastify";
 import Login from "@/components/Login";
 import Summary from "@/components/Summary";
 import UserProfileMenu from "@/components/UserProfileMenu";
@@ -43,8 +44,6 @@ export default function Home() {
   const [paidBy, setPaidBy] = useState("");
   const [paymentMethod, setPaymentMethod] = useState(PAYMENT_METHODS[0]);
   const [description, setDescription] = useState("");
-  const [formHint, setFormHint] = useState("");
-  const [formError, setFormError] = useState(false);
   const [filterPaidBy, setFilterPaidBy] = useState("");
   const [filterStartDate, setFilterStartDate] = useState("");
   const [filterEndDate, setFilterEndDate] = useState("");
@@ -142,34 +141,27 @@ export default function Home() {
     void refreshExpenses();
   }, [currentUser, filterEntryUid, filterPaidBy, filterStartDate, filterEndDate, refreshExpenses]);
 
-  useEffect(() => {
-    if (!currentUser || activeNav !== "summary") return;
-    void refreshExpenses();
-  }, [activeNav, currentUser, refreshExpenses]);
+  const [refreshing, setRefreshing] = useState(false);
+  const refreshLock = useRef(false);
 
-  useEffect(() => {
-    if (!currentUser) return;
-    const sync = () => {
-      void refreshExpenses();
-      void refreshMemberNames();
+  const handleRefreshAll = useCallback(async () => {
+    if (!currentUser || refreshLock.current) return;
+    refreshLock.current = true;
+    setRefreshing(true);
+    try {
+      const tasks: Promise<unknown>[] = [refreshExpenses(), refreshMemberNames()];
       if (currentUser.role === "admin") {
-        void refreshLogs();
-        void refreshUsers();
+        tasks.push(refreshLogs(), refreshUsers());
       }
-    };
-    const onFocus = () => sync();
-    const onVis = () => {
-      if (document.visibilityState === "visible") sync();
-    };
-    window.addEventListener("focus", onFocus);
-    document.addEventListener("visibilitychange", onVis);
-    const interval = window.setInterval(sync, 45_000);
-    return () => {
-      window.removeEventListener("focus", onFocus);
-      document.removeEventListener("visibilitychange", onVis);
-      window.clearInterval(interval);
-    };
-  }, [currentUser, refreshExpenses, refreshLogs, refreshUsers, refreshMemberNames]);
+      await Promise.all(tasks);
+      toast.success("Data updated.");
+    } catch {
+      toast.error("Could not refresh data.");
+    } finally {
+      refreshLock.current = false;
+      setRefreshing(false);
+    }
+  }, [currentUser, refreshExpenses, refreshLogs, refreshMemberNames, refreshUsers]);
 
   const participants = useMemo(() => {
     const set = new Set(expenses.map((e) => e.paid_by).filter(Boolean));
@@ -197,6 +189,7 @@ export default function Home() {
   const handleLogout = async () => {
     await writeAudit("LOGOUT", "User logged out");
     await fetch("/api/auth/logout", { method: "POST" });
+    toast.info("Signed out.");
     setCurrentUser(null);
     setExpenses([]);
     setAuditLogs([]);
@@ -205,18 +198,15 @@ export default function Home() {
   const handleAddExpense = async () => {
     const amountNum = Number(amount);
     if (!Number.isFinite(amountNum) || amountNum <= 0) {
-      setFormHint("Enter a valid amount (> 0).");
-      setFormError(true);
+      toast.error("Enter a valid amount greater than zero.");
       return;
     }
     if (!paidBy.trim()) {
-      setFormHint("Select who paid this expense.");
-      setFormError(true);
+      toast.error("Select who paid this expense.");
       return;
     }
     if (memberNames.length > 0 && !memberNames.includes(paidBy.trim())) {
-      setFormHint("Choose a team member from the Paid By list.");
-      setFormError(true);
+      toast.error("Choose a team member from the Paid By list.");
       return;
     }
 
@@ -234,8 +224,7 @@ export default function Home() {
       body: JSON.stringify(payload),
     });
     if (!res.ok) {
-      setFormHint("Failed to add expense.");
-      setFormError(true);
+      toast.error("Failed to add expense.");
       return;
     }
 
@@ -247,14 +236,23 @@ export default function Home() {
     setPaidBy("");
     setDescription("");
     setPaymentMethod(PAYMENT_METHODS[0]);
-    setFormHint("Added.");
-    setFormError(false);
+    toast.success("Expense added.");
   };
 
   const handleDeleteExpense = async (id: string) => {
     const target = expenses.find((e) => e.id === id);
     const res = await fetch(`/api/expenses/${id}`, { method: "DELETE" });
-    if (!res.ok) return;
+    if (!res.ok) {
+      let msg = "Could not delete expense.";
+      try {
+        const d = await res.json();
+        if (typeof d.error === "string") msg = d.error;
+      } catch {
+        /* ignore */
+      }
+      toast.error(msg);
+      return;
+    }
 
     if (target) {
       const ref = target.entry_uid ? `${target.entry_uid} ` : "";
@@ -265,6 +263,7 @@ export default function Home() {
     }
     await refreshExpenses();
     if (currentUser?.role === "admin") await refreshLogs();
+    toast.success(target?.entry_uid ? `Deleted ${target.entry_uid}.` : "Expense deleted.");
   };
 
   const handleResetAll = async () => {
@@ -282,8 +281,7 @@ export default function Home() {
     setPaidBy("");
     setDescription("");
     setPaymentMethod(PAYMENT_METHODS[0]);
-    setFormHint("");
-    setFormError(false);
+    toast.success(`All expense data cleared (${toDelete.length} removed).`);
   };
 
   const csvEscape = (value: string | number) => {
@@ -312,12 +310,14 @@ export default function Home() {
     downloadTextFile("expenses.csv", [headers.join(","), ...rows].join("\n"), "text/csv");
     await writeAudit("EXPORT_CSV", `Exported ${expenses.length} expense rows`);
     if (currentUser?.role === "admin") await refreshLogs();
+    toast.info(`Exported ${expenses.length} row(s) to CSV.`);
   };
 
   const handleExportJSON = async () => {
     downloadTextFile("expenses-backup.json", JSON.stringify(expenses, null, 2), "application/json");
     await writeAudit("EXPORT_JSON", "Exported expenses JSON");
     if (currentUser?.role === "admin") await refreshLogs();
+    toast.info("Expense backup downloaded (JSON).");
   };
 
   const handleImport = async (file?: File) => {
@@ -352,11 +352,9 @@ export default function Home() {
       await writeAudit("IMPORT_FILE", `Imported file ${file.name}`);
       await refreshExpenses();
       if (currentUser?.role === "admin") await refreshLogs();
-      setFormHint("Imported successfully.");
-      setFormError(false);
+      toast.success(`Imported ${file.name}.`);
     } catch {
-      setFormHint("Import failed.");
-      setFormError(true);
+      toast.error("Import failed. Check the file format.");
     }
   };
 
@@ -366,11 +364,22 @@ export default function Home() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
-    if (!res.ok) return;
+    let data: { error?: string } = {};
+    try {
+      data = await res.json();
+    } catch {
+      /* ignore */
+    }
+    if (!res.ok) {
+      toast.error(typeof data.error === "string" ? data.error : "Could not create user.");
+      return false;
+    }
+    toast.success(`User "${payload.username}" created.`);
     await writeAudit("CREATE_USER", `Created user ${payload.username} (${payload.role})`);
     await refreshUsers();
     await refreshMemberNames();
     await refreshLogs();
+    return true;
   };
 
   const toggleUser = async (id: string, active: boolean) => {
@@ -379,11 +388,22 @@ export default function Home() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ active }),
     });
-    if (!res.ok) return;
+    let data: { error?: string } = {};
+    try {
+      data = await res.json();
+    } catch {
+      /* ignore */
+    }
+    if (!res.ok) {
+      toast.error(typeof data.error === "string" ? data.error : "Could not update user.");
+      return false;
+    }
+    toast.success(active ? "User enabled." : "User disabled.");
     await writeAudit("TOGGLE_USER", `${active ? "Enabled" : "Disabled"} user id ${id}`);
     await refreshUsers();
     await refreshMemberNames();
     await refreshLogs();
+    return true;
   };
 
   if (!loaded) return null;
@@ -399,7 +419,43 @@ export default function Home() {
           <h1 className="app-brand-title">{businessName}</h1>
           <p className="app-brand-sub">Track spending, totals by payer, and backups.</p>
         </div>
-        <UserProfileMenu user={currentUser} currencySymbol={currencySymbol} onLogout={handleLogout} />
+        <div className="app-top-actions">
+          <button
+            type="button"
+            className="app-refresh-btn"
+            onClick={() => void handleRefreshAll()}
+            disabled={refreshing}
+            title="Refresh data"
+            aria-label={refreshing ? "Refreshing…" : "Refresh data from server"}
+          >
+            <span className={`app-refresh-icon${refreshing ? " app-refresh-icon--spin" : ""}`} aria-hidden>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                <path d="M3 3v5h5" />
+                <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" />
+                <path d="M16 16h5v5" />
+              </svg>
+            </span>
+          </button>
+        <UserProfileMenu
+          user={currentUser}
+          currencySymbol={currencySymbol}
+          onLogout={handleLogout}
+          onUserUpdated={(u) => {
+            setCurrentUser(u);
+            void refreshMemberNames();
+            if (u.role === "admin") {
+              void refreshLogs();
+              void (async () => {
+                const res = await fetch("/api/users", { cache: "no-store" });
+                if (!res.ok) return;
+                const data = await res.json();
+                setUsers((data.users || []) as AppUser[]);
+              })();
+            }
+          }}
+        />
+        </div>
       </header>
 
       <div className="app-body">
@@ -484,9 +540,6 @@ export default function Home() {
                   <button type="button" onClick={handleAddExpense}>
                     Add Expense
                   </button>
-                  <span className="muted" style={{ color: formError ? "#ffb0bf" : undefined }}>
-                    {formHint}
-                  </span>
                 </div>
                 <div className="footer-actions">
                   <div className="muted">{expenses.length} expenses</div>

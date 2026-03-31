@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { toast } from "react-toastify";
 import type { SessionUser } from "@/lib/types";
 
 type Props = {
@@ -24,12 +25,16 @@ export default function Login({ onSuccess }: Props) {
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error || "Login failed.");
+        const msg = data.error || "Login failed.";
+        setError(msg);
+        toast.error(msg);
         return;
       }
+      toast.success("Signed in.");
       onSuccess(data.user as SessionUser);
     } catch {
       setError("Login failed.");
+      toast.error("Login failed.");
     } finally {
       setLoading(false);
     }

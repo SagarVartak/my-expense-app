@@ -95,3 +95,12 @@ export async function getSessionUser(): Promise<SessionUser | null> {
 export const authCookieName = SESSION_COOKIE;
 export const authCookieMaxAge = SESSION_TTL_SECONDS;
 
+export const sessionCookieOptions = () =>
+  ({
+    httpOnly: true,
+    sameSite: "lax" as const,
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: SESSION_TTL_SECONDS,
+  });
+

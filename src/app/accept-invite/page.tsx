@@ -2,6 +2,7 @@
 
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
+import { toast } from "react-toastify";
 
 function AcceptInviteForm() {
   const searchParams = useSearchParams();
@@ -20,7 +21,9 @@ function AcceptInviteForm() {
   useEffect(() => {
     if (!token) {
       setChecking(false);
-      setVerifyError("Missing invite link. Open the link from your email.");
+      const msg = "Missing invite link. Open the link from your email.";
+      setVerifyError(msg);
+      toast.error(msg);
       return;
     }
     const run = async () => {
@@ -32,10 +35,14 @@ function AcceptInviteForm() {
           setValid(true);
           setEmail(data.email || "");
         } else {
-          setVerifyError(data.error || "Invalid invite.");
+          const msg = data.error || "Invalid invite.";
+          setVerifyError(msg);
+          toast.error(msg);
         }
       } catch {
-        setVerifyError("Could not verify invite.");
+        const msg = "Could not verify invite.";
+        setVerifyError(msg);
+        toast.error(msg);
       } finally {
         setChecking(false);
       }
@@ -45,7 +52,9 @@ function AcceptInviteForm() {
 
   const submit = async () => {
     if (password.length < 6) {
-      setSubmitError("Password must be at least 6 characters.");
+      const msg = "Password must be at least 6 characters.";
+      setSubmitError(msg);
+      toast.error(msg);
       return;
     }
     setLoading(true);
@@ -58,12 +67,17 @@ function AcceptInviteForm() {
       });
       const data = await res.json();
       if (!res.ok) {
-        setSubmitError(data.error || "Could not complete signup.");
+        const msg = data.error || "Could not complete signup.";
+        setSubmitError(msg);
+        toast.error(msg);
         return;
       }
+      toast.success("Account activated. You can log in.");
       setDone(true);
     } catch {
-      setSubmitError("Request failed.");
+      const msg = "Request failed.";
+      setSubmitError(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }

@@ -1,22 +1,21 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { toast } from "react-toastify";
 import type { AppUser, PendingInvite, Role } from "@/lib/types";
 
 type Props = {
   users: AppUser[];
-  onCreate: (payload: { username: string; password: string; role: Role }) => Promise<void>;
-  onToggleActive: (id: string, active: boolean) => Promise<void>;
+  onCreate: (payload: { username: string; password: string; role: Role }) => Promise<boolean>;
+  onToggleActive: (id: string, active: boolean) => Promise<boolean>;
 };
 
 export default function UserManagement({ users, onCreate, onToggleActive }: Props) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<Role>("member");
-  const [hint, setHint] = useState("");
 
   const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteHint, setInviteHint] = useState("");
   const [invites, setInvites] = useState<PendingInvite[]>([]);
 
   const loadInvites = useCallback(async () => {
@@ -32,23 +31,23 @@ export default function UserManagement({ users, onCreate, onToggleActive }: Prop
 
   const submit = async () => {
     if (!username.trim() || password.length < 6) {
-      setHint("Username required. Password must be at least 6 characters.");
+      toast.error("Username required. Password must be at least 6 characters.");
       return;
     }
-    await onCreate({ username: username.trim().toLowerCase(), password, role });
-    setUsername("");
-    setPassword("");
-    setRole("member");
-    setHint("User created.");
+    const ok = await onCreate({ username: username.trim().toLowerCase(), password, role });
+    if (ok) {
+      setUsername("");
+      setPassword("");
+      setRole("member");
+    }
   };
 
   const sendInvite = async () => {
     const email = inviteEmail.trim().toLowerCase();
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      setInviteHint("Enter a valid email.");
+      toast.error("Enter a valid email address.");
       return;
     }
-    setInviteHint("");
     const res = await fetch("/api/invites", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -56,11 +55,11 @@ export default function UserManagement({ users, onCreate, onToggleActive }: Prop
     });
     const data = await res.json();
     if (!res.ok) {
-      setInviteHint(data.error || "Invite failed.");
+      toast.error(typeof data.error === "string" ? data.error : "Invite failed.");
       return;
     }
     setInviteEmail("");
-    setInviteHint("Invite sent. They must open the email link to verify and set a password.");
+    toast.success("Invite sent. They should check email for the verification link.");
     await loadInvites();
   };
 
@@ -80,9 +79,6 @@ export default function UserManagement({ users, onCreate, onToggleActive }: Prop
         <button type="button" onClick={sendInvite}>
           Send invite
         </button>
-      </div>
-      <div className="muted" style={{ marginTop: 8, fontSize: 13 }}>
-        {inviteHint}
       </div>
 
       {invites.length > 0 ? (
@@ -132,7 +128,6 @@ export default function UserManagement({ users, onCreate, onToggleActive }: Prop
         <button type="button" onClick={submit}>
           Create User
         </button>
-        <span className="muted">{hint}</span>
       </div>
 
       <div style={{ overflow: "auto", borderRadius: 12, marginTop: 10 }}>
@@ -154,7 +149,7 @@ export default function UserManagement({ users, onCreate, onToggleActive }: Prop
                 <td>{u.role}</td>
                 <td>{u.active ? "active" : "disabled"}</td>
                 <td>
-                  <button type="button" onClick={() => onToggleActive(u.id, !u.active)}>
+                  <button type="button" onClick={() => void onToggleActive(u.id, !u.active)}>
                     {u.active ? "Disable" : "Enable"}
                   </button>
                 </td>

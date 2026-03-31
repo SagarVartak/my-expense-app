@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import AccountSettingsModal from "@/components/AccountSettingsModal";
 import type { SessionUser } from "@/lib/types";
 
 type Props = {
   user: SessionUser;
   currencySymbol: string;
   onLogout: () => void;
+  onUserUpdated: (user: SessionUser) => void;
 };
 
 function initials(username: string) {
@@ -16,8 +18,9 @@ function initials(username: string) {
   return u.slice(0, 2).toUpperCase();
 }
 
-export default function UserProfileMenu({ user, currencySymbol, onLogout }: Props) {
+export default function UserProfileMenu({ user, currencySymbol, onLogout, onUserUpdated }: Props) {
   const [open, setOpen] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -74,13 +77,32 @@ export default function UserProfileMenu({ user, currencySymbol, onLogout }: Prop
           <div className="profile-dropdown-row">
             Currency: <strong>{currencySymbol}</strong>
           </div>
-          <div className="profile-dropdown-actions">
+          <div className="profile-dropdown-actions profile-dropdown-actions-stack">
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setOpen(false);
+                setAccountOpen(true);
+              }}
+            >
+              Account settings
+            </button>
             <button type="button" role="menuitem" onClick={() => void logout()}>
               Log out
             </button>
           </div>
         </div>
       ) : null}
+      <AccountSettingsModal
+        open={accountOpen}
+        user={user}
+        onClose={() => setAccountOpen(false)}
+        onUserUpdated={(u) => {
+          onUserUpdated(u);
+          setAccountOpen(false);
+        }}
+      />
     </div>
   );
 }
