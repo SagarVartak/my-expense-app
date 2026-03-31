@@ -1,12 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Login from "@/components/Login";
 import Summary from "@/components/Summary";
+import UserProfileMenu from "@/components/UserProfileMenu";
 import ExpensesTable from "@/components/ExpensesTable";
 import AuditTable from "@/components/AuditTable";
 import UserManagement from "@/components/UserManagement";
 import type { AppUser, AuditLog, Expense, SessionUser } from "@/lib/types";
+
+type NavId = "expenses" | "summary" | "audit" | "users";
 
 const CATEGORIES = [
   "Filament/Material",
@@ -45,8 +48,25 @@ export default function Home() {
   const [filterPaidBy, setFilterPaidBy] = useState("");
   const [filterStartDate, setFilterStartDate] = useState("");
   const [filterEndDate, setFilterEndDate] = useState("");
+  const [filterEntryUid, setFilterEntryUid] = useState("");
+  const [memberNames, setMemberNames] = useState<string[]>([]);
   const currencySymbol = "₹";
   const businessName = "3D Printing Expense Sheet";
+  const [activeNav, setActiveNav] = useState<NavId>("expenses");
+  const sessionNavKey = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!currentUser) {
+      sessionNavKey.current = null;
+      return;
+    }
+    const key = `${currentUser.username}:${currentUser.role}`;
+    if (sessionNavKey.current === key) return;
+    sessionNavKey.current = key;
+    if (currentUser.role === "member") {
+      setActiveNav("expenses");
+    }
+  }, [currentUser]);
 
   useEffect(() => {
     const boot = async () => {
@@ -76,11 +96,12 @@ export default function Home() {
     if (filterPaidBy) qs.set("paidBy", filterPaidBy);
     if (filterStartDate) qs.set("startDate", filterStartDate);
     if (filterEndDate) qs.set("endDate", filterEndDate);
+    if (filterEntryUid.trim() && currentUser?.role === "admin") qs.set("entryUid", filterEntryUid.trim());
     const suffix = qs.toString() ? `?${qs.toString()}` : "";
     const res = await fetch(`/api/expenses${suffix}`, { cache: "no-store" });
     const data = await res.json();
     setExpenses((data.expenses || []) as Expense[]);
-  }, [filterEndDate, filterPaidBy, filterStartDate]);
+  }, [currentUser?.role, filterEndDate, filterEntryUid, filterPaidBy, filterStartDate]);
 
   const refreshLogs = useCallback(async () => {
     if (currentUser?.role !== "admin") return;
@@ -98,25 +119,67 @@ export default function Home() {
     setUsers((data.users || []) as AppUser[]);
   }, [currentUser?.role]);
 
+  const refreshMemberNames = useCallback(async () => {
+    const res = await fetch("/api/team-members", { cache: "no-store" });
+    if (!res.ok) return;
+    const data = await res.json();
+    setMemberNames((data.names || []) as string[]);
+  }, []);
+
   useEffect(() => {
     if (!currentUser) return;
     const run = async () => {
       await refreshExpenses();
       await refreshLogs();
       await refreshUsers();
+      await refreshMemberNames();
     };
     void run();
-  }, [currentUser, refreshExpenses, refreshLogs, refreshUsers]);
+  }, [currentUser, refreshExpenses, refreshLogs, refreshUsers, refreshMemberNames]);
 
   useEffect(() => {
     if (!currentUser) return;
     void refreshExpenses();
-  }, [currentUser, filterPaidBy, filterStartDate, filterEndDate, refreshExpenses]);
+  }, [currentUser, filterEntryUid, filterPaidBy, filterStartDate, filterEndDate, refreshExpenses]);
+
+  useEffect(() => {
+    if (!currentUser || activeNav !== "summary") return;
+    void refreshExpenses();
+  }, [activeNav, currentUser, refreshExpenses]);
+
+  useEffect(() => {
+    if (!currentUser) return;
+    const sync = () => {
+      void refreshExpenses();
+      void refreshMemberNames();
+      if (currentUser.role === "admin") {
+        void refreshLogs();
+        void refreshUsers();
+      }
+    };
+    const onFocus = () => sync();
+    const onVis = () => {
+      if (document.visibilityState === "visible") sync();
+    };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVis);
+    const interval = window.setInterval(sync, 45_000);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVis);
+      window.clearInterval(interval);
+    };
+  }, [currentUser, refreshExpenses, refreshLogs, refreshUsers, refreshMemberNames]);
 
   const participants = useMemo(() => {
     const set = new Set(expenses.map((e) => e.paid_by).filter(Boolean));
     return Array.from(set).sort((a, b) => a.localeCompare(b));
   }, [expenses]);
+
+  const filterPaidByOptions = useMemo(() => {
+    const set = new Set([...memberNames, ...participants]);
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [memberNames, participants]);
 
   const sortedExpenses = useMemo(() => [...expenses], [expenses]);
   const totalSpent = useMemo(
@@ -147,7 +210,12 @@ export default function Home() {
       return;
     }
     if (!paidBy.trim()) {
-      setFormHint("Enter who paid this expense (Paid By).");
+      setFormHint("Select who paid this expense.");
+      setFormError(true);
+      return;
+    }
+    if (memberNames.length > 0 && !memberNames.includes(paidBy.trim())) {
+      setFormHint("Choose a team member from the Paid By list.");
       setFormError(true);
       return;
     }
@@ -189,9 +257,10 @@ export default function Home() {
     if (!res.ok) return;
 
     if (target) {
+      const ref = target.entry_uid ? `${target.entry_uid} ` : "";
       await writeAudit(
         "DELETE_EXPENSE",
-        `${target.paid_by} ${currencySymbol}${money(Number(target.amount))} (${target.category})`,
+        `${ref}${target.paid_by} ${currencySymbol}${money(Number(target.amount))} (${target.category})`,
       );
     }
     await refreshExpenses();
@@ -234,9 +303,11 @@ export default function Home() {
   };
 
   const handleExportCSV = async () => {
-    const headers = ["date", "category", "description", "paidBy", "paymentMethod", "amount"];
+    const headers = ["entryUid", "date", "category", "description", "paidBy", "paymentMethod", "amount"];
     const rows = sortedExpenses.map((e) =>
-      [e.expense_date, e.category, e.description, e.paid_by, e.payment_method, Number(e.amount)].map(csvEscape).join(","),
+      [e.entry_uid ?? "", e.expense_date, e.category, e.description, e.paid_by, e.payment_method, Number(e.amount)]
+        .map(csvEscape)
+        .join(","),
     );
     downloadTextFile("expenses.csv", [headers.join(","), ...rows].join("\n"), "text/csv");
     await writeAudit("EXPORT_CSV", `Exported ${expenses.length} expense rows`);
@@ -298,6 +369,7 @@ export default function Home() {
     if (!res.ok) return;
     await writeAudit("CREATE_USER", `Created user ${payload.username} (${payload.role})`);
     await refreshUsers();
+    await refreshMemberNames();
     await refreshLogs();
   };
 
@@ -310,150 +382,201 @@ export default function Home() {
     if (!res.ok) return;
     await writeAudit("TOGGLE_USER", `${active ? "Enabled" : "Disabled"} user id ${id}`);
     await refreshUsers();
+    await refreshMemberNames();
     await refreshLogs();
   };
 
   if (!loaded) return null;
   if (!currentUser) return <Login onSuccess={setCurrentUser} />;
 
+  const navBtnClass = (id: NavId) =>
+    `nav-btn${activeNav === id ? " nav-btn-active" : ""}`;
+
   return (
-    <div className="wrap">
-      <header>
-        <div>
-          <h1>{businessName}</h1>
-          <div className="sub">Tracks expenses, calculates total spent till now, and shows totals by who paid.</div>
+    <div className="app-shell">
+      <header className="app-top">
+        <div className="app-brand">
+          <h1 className="app-brand-title">{businessName}</h1>
+          <p className="app-brand-sub">Track spending, totals by payer, and backups.</p>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <div className="pill">
-            <span className="muted">User:</span> <strong>{currentUser.username}</strong>
-          </div>
-          <button type="button" onClick={handleLogout}>
-            Logout
-          </button>
-          <div className="pill">
-            <span className="muted">Currency symbol:</span> <strong>{currencySymbol}</strong>
-          </div>
-        </div>
+        <UserProfileMenu user={currentUser} currencySymbol={currencySymbol} onLogout={handleLogout} />
       </header>
 
-      <div className="grid">
-        <section className="card">
-          <h2>Add Expense</h2>
-          <div className="row3">
-            <div>
-              <label htmlFor="expDate">Date</label>
-              <input id="expDate" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-            </div>
-            <div>
-              <label htmlFor="category">Category</label>
-              <select id="category" value={category} onChange={(e) => setCategory(e.target.value)}>
-                {CATEGORIES.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label htmlFor="amount">Amount</label>
-              <input id="amount" type="number" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} />
-            </div>
-          </div>
-          <div className="row" style={{ marginTop: 10 }}>
-            <div>
-              <label htmlFor="paidBy">Paid By</label>
-              <input id="paidBy" list="paidByList" value={paidBy} onChange={(e) => setPaidBy(e.target.value)} />
-              <datalist id="paidByList">
-                {participants.map((p) => (
-                  <option key={p} value={p} />
-                ))}
-              </datalist>
-            </div>
-            <div>
-              <label htmlFor="paymentMethod">Payment Method</label>
-              <select id="paymentMethod" value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}>
-                {PAYMENT_METHODS.map((m) => (
-                  <option key={m} value={m}>
-                    {m}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-          <div style={{ marginTop: 10 }}>
-            <label htmlFor="description">Description (optional)</label>
-            <textarea id="description" value={description} onChange={(e) => setDescription(e.target.value)} />
-          </div>
-          <div className="btnbar">
-            <button type="button" onClick={handleAddExpense}>
-              Add Expense
-            </button>
-            <span className="muted" style={{ color: formError ? "#ffb0bf" : undefined }}>
-              {formHint}
-            </span>
-          </div>
-          <div className="footer-actions">
-            <div className="muted">{expenses.length} expenses</div>
-            <button className="btn-danger" type="button" onClick={handleResetAll}>
-              Reset All Data
-            </button>
-          </div>
-        </section>
-
-        <Summary
-          currencySymbol={currencySymbol}
-          totalSpent={totalSpent}
-          spentBy={spentBy}
-          onExportCsv={handleExportCSV}
-          onExportJson={handleExportJSON}
-          onImport={handleImport}
-        />
-      </div>
-
-      <ExpensesTable expenses={sortedExpenses} currencySymbol={currencySymbol} onDelete={handleDeleteExpense} />
-      <div className="card" style={{ marginTop: 14 }}>
-        <h2>Expense Filters</h2>
-        <div className="row3">
-          <div>
-            <label htmlFor="filterPaidBy">Paid By</label>
-            <select id="filterPaidBy" value={filterPaidBy} onChange={(e) => setFilterPaidBy(e.target.value)}>
-              <option value="">All</option>
-              {participants.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label htmlFor="filterStartDate">From Date</label>
-            <input id="filterStartDate" type="date" value={filterStartDate} onChange={(e) => setFilterStartDate(e.target.value)} />
-          </div>
-          <div>
-            <label htmlFor="filterEndDate">To Date</label>
-            <input id="filterEndDate" type="date" value={filterEndDate} onChange={(e) => setFilterEndDate(e.target.value)} />
-          </div>
-        </div>
-        <div className="btnbar">
-          <button type="button" onClick={() => void refreshExpenses()}>
-            Apply Filters
+      <div className="app-body">
+        <nav className="app-sidebar" aria-label="Main navigation">
+          <div className="sidebar-label">Menu</div>
+          <button type="button" className={navBtnClass("expenses")} onClick={() => setActiveNav("expenses")}>
+            Expenses
           </button>
-          <button
-            type="button"
-            onClick={() => {
-              setFilterPaidBy("");
-              setFilterStartDate("");
-              setFilterEndDate("");
-            }}
-          >
-            Clear Filters
+          <button type="button" className={navBtnClass("summary")} onClick={() => setActiveNav("summary")}>
+            Summary &amp; data
           </button>
-        </div>
+          {currentUser.role === "admin" ? (
+            <>
+              <button type="button" className={navBtnClass("audit")} onClick={() => setActiveNav("audit")}>
+                Audit log
+              </button>
+              <button type="button" className={navBtnClass("users")} onClick={() => setActiveNav("users")}>
+                Team
+              </button>
+            </>
+          ) : null}
+        </nav>
+
+        <main className="app-main">
+          {activeNav === "expenses" ? (
+            <>
+              <section className="card">
+                <h2>Add expense</h2>
+                <div className="row3">
+                  <div>
+                    <label htmlFor="expDate">Date</label>
+                    <input id="expDate" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+                  </div>
+                  <div>
+                    <label htmlFor="category">Category</label>
+                    <select id="category" value={category} onChange={(e) => setCategory(e.target.value)}>
+                      {CATEGORIES.map((c) => (
+                        <option key={c} value={c}>
+                          {c}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label htmlFor="amount">Amount</label>
+                    <input id="amount" type="number" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} />
+                  </div>
+                </div>
+                <div className="row" style={{ marginTop: 10 }}>
+                  <div>
+                    <label htmlFor="paidBy">Paid By</label>
+                    <select id="paidBy" value={paidBy} onChange={(e) => setPaidBy(e.target.value)}>
+                      <option value="">Select team member</option>
+                      {memberNames.map((name) => (
+                        <option key={name} value={name}>
+                          {name}
+                        </option>
+                      ))}
+                    </select>
+                    {memberNames.length === 0 ? (
+                      <div className="muted" style={{ marginTop: 6, fontSize: 12 }}>
+                        Loading team members…
+                      </div>
+                    ) : null}
+                  </div>
+                  <div>
+                    <label htmlFor="paymentMethod">Payment Method</label>
+                    <select id="paymentMethod" value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}>
+                      {PAYMENT_METHODS.map((m) => (
+                        <option key={m} value={m}>
+                          {m}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div style={{ marginTop: 10 }}>
+                  <label htmlFor="description">Description (optional)</label>
+                  <textarea id="description" value={description} onChange={(e) => setDescription(e.target.value)} />
+                </div>
+                <div className="btnbar">
+                  <button type="button" onClick={handleAddExpense}>
+                    Add Expense
+                  </button>
+                  <span className="muted" style={{ color: formError ? "#ffb0bf" : undefined }}>
+                    {formHint}
+                  </span>
+                </div>
+                <div className="footer-actions">
+                  <div className="muted">{expenses.length} expenses</div>
+                  <button className="btn-danger" type="button" onClick={handleResetAll}>
+                    Reset All Data
+                  </button>
+                </div>
+              </section>
+
+              <section className="card">
+                <h2>Filters</h2>
+                <div className="row3">
+                  <div>
+                    <label htmlFor="filterPaidBy">Paid By</label>
+                    <select id="filterPaidBy" value={filterPaidBy} onChange={(e) => setFilterPaidBy(e.target.value)}>
+                      <option value="">All</option>
+                      {filterPaidByOptions.map((p) => (
+                        <option key={p} value={p}>
+                          {p}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label htmlFor="filterStartDate">From Date</label>
+                    <input id="filterStartDate" type="date" value={filterStartDate} onChange={(e) => setFilterStartDate(e.target.value)} />
+                  </div>
+                  <div>
+                    <label htmlFor="filterEndDate">To Date</label>
+                    <input id="filterEndDate" type="date" value={filterEndDate} onChange={(e) => setFilterEndDate(e.target.value)} />
+                  </div>
+                </div>
+                {currentUser.role === "admin" ? (
+                  <div style={{ marginTop: 10 }}>
+                    <label htmlFor="filterEntryUid">Entry ID lookup (admin)</label>
+                    <input
+                      id="filterEntryUid"
+                      placeholder="e.g. EXP-9K3FJ2A1"
+                      value={filterEntryUid}
+                      onChange={(e) => setFilterEntryUid(e.target.value)}
+                    />
+                    <div className="muted" style={{ marginTop: 6, fontSize: 12 }}>
+                      Finds the row with this public entry id; combine with other filters if needed.
+                    </div>
+                  </div>
+                ) : null}
+                <div className="btnbar">
+                  <button type="button" onClick={() => void refreshExpenses()}>
+                    Apply Filters
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFilterPaidBy("");
+                      setFilterStartDate("");
+                      setFilterEndDate("");
+                      setFilterEntryUid("");
+                    }}
+                  >
+                    Clear Filters
+                  </button>
+                </div>
+              </section>
+
+              <ExpensesTable
+                expenses={sortedExpenses}
+                currencySymbol={currencySymbol}
+                canDelete={currentUser.role === "admin"}
+                onDelete={handleDeleteExpense}
+              />
+            </>
+          ) : null}
+
+          {activeNav === "summary" ? (
+            <Summary
+              currencySymbol={currencySymbol}
+              totalSpent={totalSpent}
+              spentBy={spentBy}
+              onExportCsv={handleExportCSV}
+              onExportJson={handleExportJSON}
+              onImport={handleImport}
+            />
+          ) : null}
+
+          {activeNav === "audit" && currentUser.role === "admin" ? <AuditTable logs={auditLogs} /> : null}
+          {activeNav === "users" && currentUser.role === "admin" ? (
+            <UserManagement users={users} onCreate={createUser} onToggleActive={toggleUser} />
+          ) : null}
+        </main>
       </div>
-      {currentUser.role === "admin" && <AuditTable logs={auditLogs} />}
-      {currentUser.role === "admin" && (
-        <UserManagement users={users} onCreate={createUser} onToggleActive={toggleUser} />
-      )}
     </div>
   );
 }

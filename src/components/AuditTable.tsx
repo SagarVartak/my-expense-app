@@ -8,7 +8,7 @@ type Props = {
 
 export default function AuditTable({ logs }: Props) {
   return (
-    <div className="card" style={{ marginTop: 14 }}>
+    <div className="card">
       <h2>Admin Audit Logs</h2>
       <div style={{ overflow: "auto", borderRadius: 12 }}>
         <table>

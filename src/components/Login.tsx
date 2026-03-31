@@ -40,8 +40,14 @@ export default function Login({ onSuccess }: Props) {
       <div className="auth-card">
         <h2 className="auth-title">Expense Tracker Login</h2>
         <p className="auth-sub">Only authorized team members can access this sheet.</p>
-        <label htmlFor="loginUsername">Username</label>
-        <input id="loginUsername" value={username} onChange={(e) => setUsername(e.target.value)} />
+        <label htmlFor="loginUsername">Username or verified email</label>
+        <input
+          id="loginUsername"
+          type="text"
+          autoComplete="username"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+        />
         <div style={{ marginTop: 10 }}>
           <label htmlFor="loginPassword">Password</label>
           <input

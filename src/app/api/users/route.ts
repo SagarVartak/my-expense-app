@@ -10,7 +10,7 @@ export async function GET() {
   const supabase = getServerSupabase();
   const { data, error } = await supabase
     .from("app_users")
-    .select("id, username, role, active, created_at")
+    .select("id, username, role, active, created_at, email, email_verified_at")
     .order("created_at", { ascending: false });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ users: data ?? [] });
@@ -33,7 +33,7 @@ export async function POST(req: Request) {
   const { data, error } = await supabase
     .from("app_users")
     .insert({ username, role, active: true, password_hash })
-    .select("id, username, role, active, created_at")
+    .select("id, username, role, active, created_at, email, email_verified_at")
     .single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ user: data });

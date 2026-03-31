@@ -20,7 +20,7 @@ export default function Summary({
   onImport,
 }: Props) {
   return (
-    <aside className="card">
+    <div className="card">
       <h2>Summary</h2>
       <div className="pill" style={{ width: "100%", justifyContent: "space-between" }}>
         <span>Total spent till now</span>
@@ -81,7 +81,7 @@ export default function Summary({
           />
         </div>
       </div>
-    </aside>
+    </div>
   );
 }
 

@@ -11,10 +11,21 @@ export type AppUser = {
   role: Role;
   active: boolean;
   created_at?: string;
+  email?: string | null;
+  email_verified_at?: string | null;
+};
+
+export type PendingInvite = {
+  id: string;
+  email: string;
+  expires_at: string;
+  created_at: string;
+  created_by: string;
 };
 
 export type Expense = {
   id: string;
+  entry_uid?: string;
   expense_date: string;
   category: string;
   amount: number;

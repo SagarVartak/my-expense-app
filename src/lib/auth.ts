@@ -12,6 +12,8 @@ type ServerUser = {
   role: Role;
   active: boolean;
   password_hash: string;
+  email?: string | null;
+  email_verified_at?: string | null;
 };
 
 function getSecret() {
@@ -44,17 +46,33 @@ function decodeSession(token: string | undefined): SessionUser | null {
 
 async function getUserRecord(username: string): Promise<ServerUser | null> {
   const supabase = getServerSupabase();
-  const { data, error } = await supabase
-    .from("app_users")
-    .select("username, role, active, password_hash")
-    .eq("username", username)
-    .maybeSingle();
+  const { data, error } = await supabase.from("app_users").select("*").eq("username", username).maybeSingle();
   if (error || !data) return null;
   return data as ServerUser;
 }
 
-export async function authenticate(username: string, password: string): Promise<SessionUser | null> {
-  const user = await getUserRecord(username);
+async function findUserByLogin(login: string): Promise<ServerUser | null> {
+  const q = login.trim().toLowerCase();
+  if (!q) return null;
+  const supabase = getServerSupabase();
+
+  const { data: byUser, error: errUser } = await supabase.from("app_users").select("*").eq("username", q).maybeSingle();
+  if (errUser) return null;
+  if (byUser) return byUser as ServerUser;
+
+  if (q.includes("@")) {
+    const { data: byEmail, error: errEmail } = await supabase.from("app_users").select("*").eq("email", q).maybeSingle();
+    if (errEmail || !byEmail) return null;
+    const u = byEmail as ServerUser;
+    if (u.email && !u.email_verified_at) return null;
+    return u;
+  }
+
+  return null;
+}
+
+export async function authenticate(usernameOrEmail: string, password: string): Promise<SessionUser | null> {
+  const user = await findUserByLogin(usernameOrEmail);
   if (!user || !user.active) return null;
   const ok = await bcrypt.compare(password, user.password_hash);
   if (!ok) return null;

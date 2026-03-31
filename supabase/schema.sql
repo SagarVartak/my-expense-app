@@ -35,6 +35,27 @@ values
   ('sagar', 'member', true, '$2b$10$OdMS6m2u39EKlOdMSH.loOLNCo2OuFyscYdBjlIVq4hcgAVEx0Jqm')
 on conflict (username) do nothing;
 
+-- Email + invites (see migration_email_invites.sql if you already ran the schema above)
+alter table public.app_users
+  add column if not exists email text unique,
+  add column if not exists email_verified_at timestamptz;
+
+create table if not exists public.pending_invites (
+  id uuid primary key default gen_random_uuid(),
+  email text not null unique,
+  token_hash text not null,
+  expires_at timestamptz not null,
+  created_by text not null,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_pending_invites_expires on public.pending_invites (expires_at);
+
+alter table public.expenses add column if not exists entry_uid text unique;
+update public.expenses
+set entry_uid = 'EXP-' || upper(substring(replace(id::text, '-', '') from 1 for 8))
+where entry_uid is null;
+
 -- Optional: later enable RLS and policies once auth is wired.
 -- alter table public.expenses enable row level security;
 -- alter table public.audit_logs enable row level security;

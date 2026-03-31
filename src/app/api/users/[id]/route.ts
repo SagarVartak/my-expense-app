@@ -24,7 +24,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     .from("app_users")
     .update({ active })
     .eq("id", id)
-    .select("id, username, role, active, created_at")
+    .select("id, username, role, active, created_at, email, email_verified_at")
     .single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ user: data });

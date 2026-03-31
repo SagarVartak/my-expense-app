@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { parse } from "csv-parse/sync";
 import { getSessionUser } from "@/lib/auth";
+import { generateEntryUid } from "@/lib/entryUid";
 import { getServerSupabase } from "@/lib/serverSupabase";
 
 type CsvRow = {
@@ -31,6 +32,7 @@ export async function POST(req: Request) {
     }) as CsvRow[];
 
     const payload = records.map((r) => ({
+      entry_uid: generateEntryUid(),
       expense_date: r.expense_date || r.date,
       category: r.category || "Other",
       description: r.description || "",
