@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" fill="none" aria-hidden="true">
+  <rect width="40" height="40" rx="10" fill="url(#et-grad)"/>
+  <path
+    d="M12 13h16v2.2H12V13zm0 5.6h13v2.2H12v-2.2zm0 5.6h15v2.2H12v-2.2zm0 5.6h11v2.2H12v-2.2z"
+    fill="#eaf1ff"
+    opacity="0.92"
+  />
+  <defs>
+    <linearGradient id="et-grad" x1="10" y1="6" x2="30" y2="34" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2a5a9e"/>
+      <stop offset="1" stop-color="#60adff"/>
+    </linearGradient>
+  </defs>
+</svg>

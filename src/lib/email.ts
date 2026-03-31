@@ -13,7 +13,7 @@ export function buildAcceptInviteUrl(token: string): string {
 /** Sends invite email via Resend when RESEND_API_KEY is set; otherwise logs the link (dev). */
 export async function sendInviteEmail(to: string, acceptUrl: string): Promise<void> {
   const key = process.env.RESEND_API_KEY;
-  const from = process.env.RESEND_FROM_EMAIL || "Expense App <onboarding@resend.dev>";
+  const from = process.env.RESEND_FROM_EMAIL || "Expense tracker <onboarding@resend.dev>";
 
   if (!key) {
     console.warn("[invite] RESEND_API_KEY not set — invite link (share manually):", acceptUrl);

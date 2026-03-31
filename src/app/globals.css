@@ -89,9 +89,21 @@ body {
 }
 .app-brand {
   display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.app-brand-text {
+  display: flex;
   flex-direction: column;
   gap: 2px;
   min-width: 0;
+}
+.app-brand-mark {
+  flex-shrink: 0;
+  border-radius: 10px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
 }
 .app-brand-title {
   font-size: 17px;
@@ -448,6 +460,24 @@ tbody tr:hover {
   align-items: center;
   justify-content: center;
   padding: 20px;
+}
+.auth-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+.auth-brand .auth-title {
+  margin-bottom: 0;
+}
+.auth-lead {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: 0.02em;
 }
 .auth-card {
   width: 100%;

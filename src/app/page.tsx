@@ -5,6 +5,7 @@ import { toast } from "react-toastify";
 import Login from "@/components/Login";
 import Summary from "@/components/Summary";
 import UserProfileMenu from "@/components/UserProfileMenu";
+import BrandMark from "@/components/BrandMark";
 import ExpensesTable from "@/components/ExpensesTable";
 import AuditTable from "@/components/AuditTable";
 import UserManagement from "@/components/UserManagement";
@@ -50,7 +51,7 @@ export default function Home() {
   const [filterEntryUid, setFilterEntryUid] = useState("");
   const [memberNames, setMemberNames] = useState<string[]>([]);
   const currencySymbol = "₹";
-  const businessName = "3D Printing Expense Sheet";
+  const appName = "Expense tracker";
   const [activeNav, setActiveNav] = useState<NavId>("expenses");
   const sessionNavKey = useRef<string | null>(null);
 
@@ -416,8 +417,11 @@ export default function Home() {
     <div className="app-shell">
       <header className="app-top">
         <div className="app-brand">
-          <h1 className="app-brand-title">{businessName}</h1>
-          <p className="app-brand-sub">Track spending, totals by payer, and backups.</p>
+          <BrandMark size={44} className="app-brand-mark" />
+          <div className="app-brand-text">
+            <h1 className="app-brand-title">{appName}</h1>
+            <p className="app-brand-sub">Track spending, totals by payer, and backups.</p>
+          </div>
         </div>
         <div className="app-top-actions">
           <button

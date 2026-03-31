@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import BrandMark from "@/components/BrandMark";
 import { toast } from "react-toastify";
 import type { SessionUser } from "@/lib/types";
 
@@ -43,8 +44,11 @@ export default function Login({ onSuccess }: Props) {
   return (
     <div className="auth-shell">
       <div className="auth-card">
-        <h2 className="auth-title">Expense Tracker Login</h2>
-        <p className="auth-sub">Only authorized team members can access this sheet.</p>
+        <div className="auth-brand">
+          <BrandMark size={48} className="app-brand-mark" />
+          <h2 className="auth-title">Expense tracker</h2>
+        </div>
+        <p className="auth-sub">Sign in with your username or verified email.</p>
         <label htmlFor="loginUsername">Username or verified email</label>
         <input
           id="loginUsername"
