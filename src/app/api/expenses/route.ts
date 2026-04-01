@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
+import { notifyDiscordExpenseAdded } from "@/lib/discordWebhook";
 import { generateEntryUid, normalizeEntryUid } from "@/lib/entryUid";
 import { getServerSupabase } from "@/lib/serverSupabase";
 
@@ -67,6 +68,7 @@ export async function POST(req: Request) {
       }
     }
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (data) notifyDiscordExpenseAdded(data, user.username);
     return NextResponse.json({ expense: data });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });
