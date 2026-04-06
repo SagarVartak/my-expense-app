@@ -593,10 +593,50 @@ textarea:focus {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
 }
+.row3 > .span-row3 {
+  grid-column: 1 / -1;
+}
+/* Checkbox + long helper text: aligns with row3 gutters, matches input padding */
+label.order-ledger-ship-waive {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px;
+  align-items: start;
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0;
+  margin-bottom: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(7, 12, 24, 0.35);
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text);
+}
+label.order-ledger-ship-waive input[type="checkbox"] {
+  width: 1.125rem;
+  height: 1.125rem;
+  margin: 0.2rem 0 0;
+  accent-color: #4ea1ff;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+label.order-ledger-ship-waive:has(input:disabled) {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+label.order-ledger-ship-waive:has(input:disabled) input {
+  cursor: not-allowed;
+}
 @media (max-width: 720px) {
   .row3,
   .row {
     grid-template-columns: 1fr;
+  }
+  .row3 > .span-row3 {
+    grid-column: auto;
   }
 }
 .btnbar {

@@ -298,14 +298,14 @@ export default function OrderLedger({ currencySymbol, currentUser, refreshSignal
           </div>
         </div>
 
-        <div style={{ marginTop: 12 }}>
-          <label className="checkbox-row" style={{ display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer" }}>
+        <div className="row3" style={{ marginTop: 12 }}>
+          <label htmlFor="ol-exclude-ship" className="span-row3 order-ledger-ship-waive">
             <input
+              id="ol-exclude-ship"
               type="checkbox"
               checked={excludeShippingFromCost}
               onChange={(e) => setExcludeShippingFromCost(e.target.checked)}
               disabled={!costDesignId}
-              style={{ marginTop: 3 }}
             />
             <span>
               Don’t include shipping fee from saved design in this order’s cost (e.g. friends / you deliver — no
