@@ -21,6 +21,8 @@ type Props = {
   currentUser: SessionUser;
   /** From header refresh (increment to reload). */
   refreshSignal: number;
+  /** When approvals / deletions change (pending-delete badges). */
+  approvalSyncSignal?: number;
   /** Increment when a design is saved from the calculator (reloads list). */
   saveBump?: number;
   /** Called after a design is deleted (e.g. refresh admin audit log). */
@@ -34,6 +36,7 @@ export default function SavedCostDesignsTable({
   currencySymbol,
   currentUser,
   refreshSignal,
+  approvalSyncSignal = 0,
   saveBump = 0,
   onCostDesignMutated,
   onChangeRequestSubmitted,
@@ -43,6 +46,22 @@ export default function SavedCostDesignsTable({
   const [loadingList, setLoadingList] = useState(true);
   const hasLoadedOnce = useRef(false);
   const [editing, setEditing] = useState<CostDesign | null>(null);
+  const [pendingDeletionIds, setPendingDeletionIds] = useState<Set<string>>(new Set());
+
+  const loadPendingDeletions = useCallback(async () => {
+    try {
+      const res = await fetch("/api/deletion-requests?scope=mine", { cache: "no-store" });
+      const data = await res.json();
+      if (!res.ok) return;
+      const next = new Set<string>();
+      for (const r of (data.requests || []) as { resource_type: string; resource_id: string }[]) {
+        if (r.resource_type === "cost_design") next.add(r.resource_id);
+      }
+      setPendingDeletionIds(next);
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   const loadDesigns = useCallback(async (soft: boolean) => {
     if (!soft || !hasLoadedOnce.current) setLoadingList(true);
@@ -66,6 +85,10 @@ export default function SavedCostDesignsTable({
     void loadDesigns(hasLoadedOnce.current);
   }, [refreshSignal, saveBump, loadDesigns]);
 
+  useEffect(() => {
+    void loadPendingDeletions();
+  }, [refreshSignal, saveBump, approvalSyncSignal, loadPendingDeletions]);
+
   const handleDelete = async (id: string) => {
     try {
       const res = await fetch(`/api/cost-designs/${id}`, { method: "DELETE" });
@@ -79,6 +102,27 @@ export default function SavedCostDesignsTable({
       onCostDesignMutated?.();
     } catch {
       toast.error("Could not delete.");
+    }
+  };
+
+  const handleRequestDelete = async (id: string) => {
+    if (!window.confirm("Request deletion? An admin must approve before this design is removed.")) return;
+    try {
+      const res = await fetch("/api/deletion-requests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ resource_type: "cost_design", resource_id: id }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || "Could not submit request.");
+        return;
+      }
+      toast.success("Deletion request sent. An admin can approve it under Approvals → Deletions.");
+      await loadPendingDeletions();
+      onChangeRequestSubmitted?.();
+    } catch {
+      toast.error("Could not submit request.");
     }
   };
 
@@ -164,9 +208,19 @@ export default function SavedCostDesignsTable({
                         Edit
                       </button>
                       {canDeleteRow(d.created_by) ? (
-                        <button className="delete" type="button" onClick={() => void handleDelete(d.id)}>
-                          Delete
-                        </button>
+                        currentUser.role === "admin" ? (
+                          <button className="delete" type="button" onClick={() => void handleDelete(d.id)}>
+                            Delete
+                          </button>
+                        ) : pendingDeletionIds.has(d.id) ? (
+                          <span className="muted" style={{ fontSize: 11 }}>
+                            Delete pending
+                          </span>
+                        ) : (
+                          <button className="delete" type="button" onClick={() => void handleRequestDelete(d.id)}>
+                            Request delete
+                          </button>
+                        )
                       ) : null}
                     </div>
                   </td>

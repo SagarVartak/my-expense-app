@@ -11,6 +11,8 @@ type Props = {
   currencySymbol: string;
   currentUser: SessionUser;
   refreshSignal: number;
+  /** Bumps when approvals / deletion queue changes (reload pending-delete badges). */
+  approvalSyncSignal?: number;
   /** Called after a design is saved (e.g. refresh admin audit log). */
   onCostDesignMutated?: () => void;
   /** After an edit is submitted for approval (pending admin). */
@@ -26,6 +28,7 @@ export default function CostPriceCalculator({
   currencySymbol,
   currentUser,
   refreshSignal,
+  approvalSyncSignal = 0,
   onCostDesignMutated,
   onChangeRequestSubmitted,
 }: Props) {
@@ -242,6 +245,7 @@ export default function CostPriceCalculator({
         currencySymbol={currencySymbol}
         currentUser={currentUser}
         refreshSignal={refreshSignal}
+        approvalSyncSignal={approvalSyncSignal}
         saveBump={saveBump}
         onCostDesignMutated={onCostDesignMutated}
         onChangeRequestSubmitted={onChangeRequestSubmitted}

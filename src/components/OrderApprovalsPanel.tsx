@@ -152,7 +152,7 @@ export default function OrderApprovalsPanel({ currencySymbol, refreshSignal, onM
   const pendingCount = newOrders.length + editReqs.length;
 
   return (
-    <section className="card" style={{ marginTop: 20 }}>
+    <section className="card">
       <h2>Order approvals</h2>
       <p className="calc-lead muted" style={{ marginBottom: 12 }}>
         {loading && !loaded.current ? "Loading…" : `${pendingCount} pending (new orders + edits).`}

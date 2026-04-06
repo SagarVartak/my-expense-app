@@ -10,6 +10,8 @@ type Props = {
   currencySymbol: string;
   currentUser: SessionUser;
   refreshSignal: number;
+  /** When approvals / deletions change (pending-delete badges). */
+  approvalSyncSignal?: number;
   onOrderMutated?: () => void;
   emptyHint?: string;
 };
@@ -18,6 +20,7 @@ export default function OrdersTable({
   currencySymbol,
   currentUser,
   refreshSignal,
+  approvalSyncSignal = 0,
   onOrderMutated,
   emptyHint = 'No orders yet. Open Order Ledger and click "Add order".',
 }: Props) {
@@ -25,6 +28,22 @@ export default function OrdersTable({
   const [loadingOrders, setLoadingOrders] = useState(true);
   const hasOrdersLoaded = useRef(false);
   const [editing, setEditing] = useState<OrderLedgerEntry | null>(null);
+  const [pendingDeletionIds, setPendingDeletionIds] = useState<Set<string>>(new Set());
+
+  const loadPendingDeletions = useCallback(async () => {
+    try {
+      const res = await fetch("/api/deletion-requests?scope=mine", { cache: "no-store" });
+      const data = await res.json();
+      if (!res.ok) return;
+      const next = new Set<string>();
+      for (const r of (data.requests || []) as { resource_type: string; resource_id: string }[]) {
+        if (r.resource_type === "order_ledger") next.add(r.resource_id);
+      }
+      setPendingDeletionIds(next);
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   const loadOrders = useCallback(async (soft: boolean) => {
     if (!soft || !hasOrdersLoaded.current) setLoadingOrders(true);
@@ -48,6 +67,10 @@ export default function OrdersTable({
     void loadOrders(hasOrdersLoaded.current);
   }, [refreshSignal, loadOrders]);
 
+  useEffect(() => {
+    void loadPendingDeletions();
+  }, [refreshSignal, approvalSyncSignal, loadPendingDeletions]);
+
   const approvalLabel = (o: OrderLedgerEntry) => {
     const st = o.approval_status ?? "approved";
     if (st === "approved") return "Approved";
@@ -58,13 +81,6 @@ export default function OrdersTable({
   const canEditOrder = (o: OrderLedgerEntry) => {
     const st = o.approval_status ?? "approved";
     return st === "approved";
-  };
-
-  const canDeleteOrder = (o: OrderLedgerEntry) => {
-    const st = o.approval_status ?? "approved";
-    if (currentUser.role === "admin") return true;
-    if (o.created_by !== currentUser.username) return false;
-    return st === "pending" || st === "rejected";
   };
 
   const handleDelete = async (id: string) => {
@@ -81,6 +97,27 @@ export default function OrdersTable({
       onOrderMutated?.();
     } catch {
       toast.error("Could not delete.");
+    }
+  };
+
+  const handleRequestDelete = async (id: string) => {
+    if (!window.confirm("Request deletion? An admin must approve before this order is removed.")) return;
+    try {
+      const res = await fetch("/api/deletion-requests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ resource_type: "order_ledger", resource_id: id }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || "Could not submit request.");
+        return;
+      }
+      toast.success("Deletion request sent. An admin can approve it under Approvals → Deletions.");
+      await loadPendingDeletions();
+      onOrderMutated?.();
+    } catch {
+      toast.error("Could not submit request.");
     }
   };
 
@@ -101,7 +138,7 @@ export default function OrdersTable({
       <p className="calc-lead muted" style={{ marginBottom: 12 }}>
         {loadingOrders && !hasOrdersLoaded.current ? "Loading…" : `${orders.length} orders.`}{" "}
         <span className="muted" style={{ fontSize: 13 }}>
-          New orders and edits appear for everyone only after an admin approves them under Approvals.
+          New orders and edits appear for everyone only after an admin approves them under Approvals → Orders.
         </span>
       </p>
       <div className="order-table-wrap">
@@ -144,6 +181,7 @@ export default function OrdersTable({
             ) : (
               orders.map((o) => {
                 const st = o.approval_status ?? "approved";
+                const isOwner = o.created_by === currentUser.username;
                 return (
                   <tr key={o.id}>
                     <td className="muted" style={{ fontSize: 12, whiteSpace: "nowrap" }}>
@@ -204,12 +242,24 @@ export default function OrdersTable({
                             Edit
                           </button>
                         ) : null}
-                        {canDeleteOrder(o) ? (
+                        {currentUser.role === "admin" ? (
                           <button className="delete" type="button" onClick={() => void handleDelete(o.id)}>
                             Delete
                           </button>
+                        ) : isOwner ? (
+                          pendingDeletionIds.has(o.id) ? (
+                            <span className="muted" style={{ fontSize: 11 }}>
+                              Delete pending
+                            </span>
+                          ) : (
+                            <button className="delete" type="button" onClick={() => void handleRequestDelete(o.id)}>
+                              Request delete
+                            </button>
+                          )
                         ) : null}
-                        {!canEditOrder(o) && !canDeleteOrder(o) ? <span className="muted">—</span> : null}
+                        {!canEditOrder(o) && currentUser.role !== "admin" && !isOwner ? (
+                          <span className="muted">—</span>
+                        ) : null}
                       </div>
                     </td>
                   </tr>

@@ -19,14 +19,11 @@ export async function DELETE(_: Request, { params }: { params: Promise<{ id: str
       .maybeSingle();
     if (fetchErr || !row) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-    const approval = String((row as { approval_status?: string }).approval_status ?? "approved");
-    const isOwner = row.created_by === user.username;
-
     if (user.role !== "admin") {
-      if (!isOwner) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-      if (approval === "approved") {
-        return NextResponse.json({ error: "Only an admin can delete approved orders." }, { status: 403 });
-      }
+      return NextResponse.json(
+        { error: "Members must submit a deletion request. An admin will approve it under Approvals → Deletions." },
+        { status: 403 },
+      );
     }
 
     const { error } = await supabase.from("order_ledger").delete().eq("id", id);

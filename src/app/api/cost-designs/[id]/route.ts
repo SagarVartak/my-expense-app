@@ -21,6 +21,12 @@ export async function DELETE(_: Request, { params }: { params: Promise<{ id: str
     if (user.role !== "admin" && row.created_by !== user.username) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
+    if (user.role !== "admin") {
+      return NextResponse.json(
+        { error: "Members must submit a deletion request. An admin will approve it under Approvals → Deletions." },
+        { status: 403 },
+      );
+    }
 
     const { error } = await supabase.from("cost_designs").delete().eq("id", id);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });

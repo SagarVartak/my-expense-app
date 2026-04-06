@@ -169,7 +169,7 @@ export default function EditOrderModal({ open, order, currencySymbol, onClose, o
           Edit order {order.order_uid}
         </h2>
         <p className="muted" style={{ margin: "0 0 14px", fontSize: 13 }}>
-          Changes apply after an admin approves under <strong style={{ color: "var(--text)" }}>Approvals</strong>.
+          Changes apply after an admin approves under <strong style={{ color: "var(--text)" }}>Approvals → Orders</strong>.
         </p>
 
         <div className="row3" style={{ marginTop: 8 }}>

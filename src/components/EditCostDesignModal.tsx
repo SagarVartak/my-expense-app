@@ -130,7 +130,7 @@ export default function EditCostDesignModal({ open, design, currencySymbol, onCl
         toast.error(data.error || "Could not submit change request.");
         return;
       }
-      toast.success("Change request sent. An admin can approve it under Design approvals.");
+      toast.success("Change request sent. An admin can approve it under Approvals → Design changes.");
       onRequestSubmitted?.();
       onClose();
     } catch {

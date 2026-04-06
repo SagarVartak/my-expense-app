@@ -152,3 +152,18 @@ export type OrderLedgerChangeRequest = {
   proposed_snapshot: OrderLedgerSnapshotJson;
 };
 
+export type DeletionResourceType = "expense" | "cost_design" | "order_ledger";
+
+export type DeletionRequest = {
+  id: string;
+  resource_type: DeletionResourceType;
+  resource_id: string;
+  requested_by: string;
+  status: CostDesignChangeRequestStatus;
+  payload: Record<string, unknown>;
+  created_at: string;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  reject_reason: string;
+};
+
