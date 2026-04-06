@@ -16,9 +16,11 @@ import OrderApprovalsPanel from "@/components/OrderApprovalsPanel";
 import DeletionApprovalsPanel from "@/components/DeletionApprovalsPanel";
 import OrderLedger from "@/components/OrderLedger";
 import OrdersTable from "@/components/OrdersTable";
+import PrintedInventory from "@/components/PrintedInventory";
 import type { AppUser, AuditLog, Expense, SessionUser } from "@/lib/types";
 
 type NavId =
+  | "inventory"
   | "expenses"
   | "summary"
   | "costCalculator"
@@ -70,7 +72,7 @@ export default function Home() {
   const [memberNames, setMemberNames] = useState<string[]>([]);
   const currencySymbol = "₹";
   const appName = "Expense tracker";
-  const [activeNav, setActiveNav] = useState<NavId>("expenses");
+  const [activeNav, setActiveNav] = useState<NavId>("inventory");
   const sessionNavKey = useRef<string | null>(null);
   const deepLinkNavApplied = useRef(false);
 
@@ -82,9 +84,7 @@ export default function Home() {
     const key = `${currentUser.username}:${currentUser.role}`;
     if (sessionNavKey.current === key) return;
     sessionNavKey.current = key;
-    if (currentUser.role === "member") {
-      setActiveNav("expenses");
-    }
+    setActiveNav("inventory");
   }, [currentUser]);
 
   useEffect(() => {
@@ -92,6 +92,7 @@ export default function Home() {
     const params = new URLSearchParams(typeof window !== "undefined" ? window.location.search : "");
     const nav = params.get("nav");
     const map: Record<string, NavId> = {
+      inventory: "inventory",
       expenses: "expenses",
       summary: "summary",
       costCalculator: "costCalculator",
@@ -196,6 +197,7 @@ export default function Home() {
 
   const [refreshing, setRefreshing] = useState(false);
   const refreshLock = useRef(false);
+  const [inventoryRefresh, setInventoryRefresh] = useState(0);
   const [costDesignRefresh, setCostDesignRefresh] = useState(0);
   const [orderLedgerRefresh, setOrderLedgerRefresh] = useState(0);
   const [approvalRefresh, setApprovalRefresh] = useState(0);
@@ -214,6 +216,7 @@ export default function Home() {
         tasks.push(refreshLogs(), refreshUsers());
       }
       await Promise.all(tasks);
+      setInventoryRefresh((k) => k + 1);
       setCostDesignRefresh((k) => k + 1);
       setOrderLedgerRefresh((k) => k + 1);
       setApprovalRefresh((k) => k + 1);
@@ -527,6 +530,9 @@ export default function Home() {
       <div className="app-body">
         <nav className="app-sidebar" aria-label="Main navigation">
           <div className="sidebar-label">Menu</div>
+          <button type="button" className={navBtnClass("inventory")} onClick={() => setActiveNav("inventory")}>
+            Inventory
+          </button>
           <button type="button" className={navBtnClass("expenses")} onClick={() => setActiveNav("expenses")}>
             Expenses
           </button>
@@ -582,6 +588,9 @@ export default function Home() {
         </nav>
 
         <main className="app-main">
+          {activeNav === "inventory" ? (
+            <PrintedInventory refreshSignal={inventoryRefresh} onMutated={notifyCostDesignAudit} />
+          ) : null}
           {activeNav === "expenses" ? (
             <>
               <section className="card">
@@ -732,7 +741,10 @@ export default function Home() {
               currentUser={currentUser}
               refreshSignal={costDesignRefresh}
               approvalSyncSignal={approvalRefresh}
-              onCostDesignMutated={notifyCostDesignAudit}
+              onCostDesignMutated={() => {
+                notifyCostDesignAudit();
+                setInventoryRefresh((k) => k + 1);
+              }}
               onChangeRequestSubmitted={() => {
                 setApprovalRefresh((k) => k + 1);
                 notifyCostDesignAudit();
@@ -751,7 +763,10 @@ export default function Home() {
                 currentUser={currentUser}
                 refreshSignal={costDesignRefresh}
                 approvalSyncSignal={approvalRefresh}
-                onCostDesignMutated={notifyCostDesignAudit}
+                onCostDesignMutated={() => {
+                  notifyCostDesignAudit();
+                  setInventoryRefresh((k) => k + 1);
+                }}
                 onChangeRequestSubmitted={() => {
                   setApprovalRefresh((k) => k + 1);
                   notifyCostDesignAudit();
@@ -796,7 +811,10 @@ export default function Home() {
               currencySymbol={currencySymbol}
               refreshSignal={approvalRefresh}
               onMutated={notifyCostDesignAudit}
-              onApplied={() => setCostDesignRefresh((k) => k + 1)}
+              onApplied={() => {
+                setCostDesignRefresh((k) => k + 1);
+                setInventoryRefresh((k) => k + 1);
+              }}
             />
           ) : null}
           {activeNav === "orderApprovals" && currentUser.role === "admin" ? (
@@ -804,7 +822,10 @@ export default function Home() {
               currencySymbol={currencySymbol}
               refreshSignal={approvalRefresh}
               onMutated={notifyCostDesignAudit}
-              onOrderApplied={() => setOrderLedgerRefresh((k) => k + 1)}
+              onOrderApplied={() => {
+                setOrderLedgerRefresh((k) => k + 1);
+                setInventoryRefresh((k) => k + 1);
+              }}
             />
           ) : null}
           {activeNav === "deletionApprovals" && currentUser.role === "admin" ? (
@@ -815,6 +836,7 @@ export default function Home() {
                 notifyCostDesignAudit();
                 setApprovalRefresh((k) => k + 1);
                 setCostDesignRefresh((k) => k + 1);
+                setInventoryRefresh((k) => k + 1);
                 setOrderLedgerRefresh((k) => k + 1);
                 void refreshExpenses();
               }}

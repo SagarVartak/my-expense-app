@@ -30,6 +30,7 @@ export default function OrderLedger({ currencySymbol, onOrderMutated }: Props) {
   const [customerName, setCustomerName] = useState("");
   const [shippingAddress, setShippingAddress] = useState("");
   const [actualWeightG, setActualWeightG] = useState("");
+  const [units, setUnits] = useState("1");
   const [sellingPrice, setSellingPrice] = useState("");
   const [paymentMethod, setPaymentMethod] = useState(PAYMENT_METHODS[0]);
   const [paymentStatus, setPaymentStatus] = useState(PAYMENT_STATUS[0]);
@@ -85,6 +86,7 @@ export default function OrderLedger({ currencySymbol, onOrderMutated }: Props) {
     setCustomerName("");
     setShippingAddress("");
     setActualWeightG("");
+    setUnits("1");
     setSellingPrice("");
     setPaymentMethod(PAYMENT_METHODS[0]);
     setPaymentStatus(PAYMENT_STATUS[0]);
@@ -115,6 +117,7 @@ export default function OrderLedger({ currencySymbol, onOrderMutated }: Props) {
           customer_name: customerName.trim(),
           shipping_address: shippingAddress.trim(),
           actual_weight_g: actualWeightG,
+          units: Math.max(1, Math.floor(Number(units) || 1)),
           selling_price: sellingNum,
           payment_method: paymentMethod,
           payment_status: paymentStatus,
@@ -151,7 +154,8 @@ export default function OrderLedger({ currencySymbol, onOrderMutated }: Props) {
       </p>
       <p className="calc-lead muted" style={{ marginTop: 8 }}>
         Link each order to a saved design; total cost comes from that design (optionally without the design’s
-        shipping line for friends / hand delivery). Net profit = selling price − cost used for this order.
+        shipping line for friends / hand delivery). Net profit = selling price − cost used for this order. When an
+        admin approves the order, that many units are deducted from printed inventory for that design.
       </p>
 
       <div className="row3" style={{ marginTop: 12 }}>
@@ -211,25 +215,17 @@ export default function OrderLedger({ currencySymbol, onOrderMutated }: Props) {
           />
         </div>
         <div>
-          <label>Total cost for this order</label>
-          <div
-            className="muted"
-            style={{
-              padding: "10px 12px",
-              borderRadius: 12,
-              border: "1px solid rgba(255,255,255,0.14)",
-              background: "rgba(7, 12, 24, 0.52)",
-              fontWeight: 600,
-              color: "var(--text)",
-            }}
-          >
-            {costDesignId ? fmtOrderMoney(currencySymbol, effectiveTotalCost) : "—"}
-          </div>
-          {costDesignId && excludeShippingFromCost && designShipping > 0 ? (
-            <p className="muted" style={{ marginTop: 6, fontSize: 12 }}>
-              Design shipping ({fmtOrderMoney(currencySymbol, designShipping)}) not included in cost.
-            </p>
-          ) : null}
+          <label htmlFor="ol-units">Units (inventory)</label>
+          <input
+            id="ol-units"
+            type="number"
+            inputMode="numeric"
+            min={1}
+            step={1}
+            value={units}
+            onChange={(e) => setUnits(e.target.value)}
+            title="Number of items; deducted from printed stock when the order is approved"
+          />
         </div>
         <div>
           <label htmlFor="ol-selling">Selling price</label>
@@ -243,6 +239,29 @@ export default function OrderLedger({ currencySymbol, onOrderMutated }: Props) {
             onChange={(e) => setSellingPrice(e.target.value)}
           />
         </div>
+      </div>
+
+      <div style={{ marginTop: 10 }}>
+        <label>Total cost for this order</label>
+        <div
+          className="muted"
+          style={{
+            padding: "10px 12px",
+            borderRadius: 12,
+            border: "1px solid rgba(255,255,255,0.14)",
+            background: "rgba(7, 12, 24, 0.52)",
+            fontWeight: 600,
+            color: "var(--text)",
+            maxWidth: 320,
+          }}
+        >
+          {costDesignId ? fmtOrderMoney(currencySymbol, effectiveTotalCost) : "—"}
+        </div>
+        {costDesignId && excludeShippingFromCost && designShipping > 0 ? (
+          <p className="muted" style={{ marginTop: 6, fontSize: 12 }}>
+            Design shipping ({fmtOrderMoney(currencySymbol, designShipping)}) not included in cost.
+          </p>
+        ) : null}
       </div>
 
       <div className="row3" style={{ marginTop: 12 }}>

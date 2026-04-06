@@ -3,6 +3,7 @@ import { insertAuditLog } from "@/lib/auditLog";
 import { getSessionUser } from "@/lib/auth";
 import { notifyDiscordOrderLedgerAdded } from "@/lib/discordWebhook";
 import { generateOrderUid } from "@/lib/entryUid";
+import { insertOrderLedgerWithSchemaFallback } from "@/lib/orderLedgerSchemaFallback";
 import { getServerSupabase } from "@/lib/serverSupabase";
 
 function num(v: unknown, def = 0): number {
@@ -10,75 +11,7 @@ function num(v: unknown, def = 0): number {
   return Number.isFinite(n) ? n : def;
 }
 
-/** PostgREST when column missing or cache stale */
-function isMissingExcludeShippingColumnError(err: unknown): boolean {
-  const msg = String((err as { message?: string; code?: string })?.message ?? "");
-  const code = String((err as { code?: string })?.code ?? "");
-  return (
-    /exclude_shipping_from_cost|schema cache|could not find.*column/i.test(msg) ||
-    code === "PGRST204"
-  );
-}
-
-function isMissingApprovalStatusColumnError(err: unknown): boolean {
-  const msg = String((err as { message?: string; code?: string })?.message ?? "");
-  const code = String((err as { code?: string })?.code ?? "");
-  return (
-    /approval_status|schema cache|could not find.*column/i.test(msg) || code === "PGRST204"
-  );
-}
-
 type OrderInsertRow = Record<string, unknown>;
-
-async function insertOrderLedgerWithFallback(
-  supabase: ReturnType<typeof getServerSupabase>,
-  row: OrderInsertRow,
-): Promise<{ data: Record<string, unknown> | null; error: unknown }> {
-  let { data, error } = await supabase.from("order_ledger").insert(row).select("*").single();
-  if (!error) return { data, error: null };
-
-  if (isMissingApprovalStatusColumnError(error) && "approval_status" in row) {
-    const { approval_status: _a, ...withoutApproval } = row;
-    const retry = await supabase.from("order_ledger").insert(withoutApproval).select("*").single();
-    return { data: retry.data as Record<string, unknown> | null, error: retry.error };
-  }
-
-  if (isMissingExcludeShippingColumnError(error) && "exclude_shipping_from_cost" in row) {
-    const { exclude_shipping_from_cost: _e, ...withoutFlag } = row;
-    const retry = await supabase.from("order_ledger").insert(withoutFlag).select("*").single();
-    if (!retry.error) return { data: retry.data as Record<string, unknown> | null, error: null };
-    if (isMissingApprovalStatusColumnError(retry.error) && "approval_status" in row) {
-      const { approval_status: _a, exclude_shipping_from_cost: _e2, ...rest } = row;
-      const retry2 = await supabase.from("order_ledger").insert(rest).select("*").single();
-      return { data: retry2.data as Record<string, unknown> | null, error: retry2.error };
-    }
-    return { data: retry.data as Record<string, unknown> | null, error: retry.error };
-  }
-
-  const dup =
-    (error as { code?: string }).code === "23505" ||
-    Boolean((error as { message?: string }).message?.match?.(/duplicate|unique/i));
-  if (dup) {
-    const retry = await supabase
-      .from("order_ledger")
-      .insert({ ...row, order_uid: generateOrderUid() })
-      .select("*")
-      .single();
-    if (!retry.error) return { data: retry.data as Record<string, unknown> | null, error: null };
-    if (isMissingExcludeShippingColumnError(retry.error) && "exclude_shipping_from_cost" in row) {
-      const { exclude_shipping_from_cost: _e, ...withoutFlag } = row;
-      const retry2 = await supabase
-        .from("order_ledger")
-        .insert({ ...withoutFlag, order_uid: generateOrderUid() })
-        .select("*")
-        .single();
-      return { data: retry2.data as Record<string, unknown> | null, error: retry2.error };
-    }
-    return { data: retry.data as Record<string, unknown> | null, error: retry.error };
-  }
-
-  return { data, error };
-}
 
 export async function GET() {
   const user = await getSessionUser();
@@ -145,6 +78,7 @@ export async function POST(req: Request) {
       : designTotal;
     const selling_price = num(body.selling_price);
     const net_profit = selling_price - total_cost_price;
+    const units = Math.max(1, Math.floor(num(body.units, 1)));
 
     const row: OrderInsertRow = {
       order_uid: generateOrderUid(),
@@ -166,9 +100,10 @@ export async function POST(req: Request) {
       exclude_shipping_from_cost,
       created_by: user.username,
       approval_status: "pending",
+      units,
     };
 
-    const inserted = await insertOrderLedgerWithFallback(supabase, row);
+    const inserted = await insertOrderLedgerWithSchemaFallback(supabase, row, generateOrderUid);
     const { data, error } = inserted;
     if (error) return NextResponse.json({ error: String((error as { message?: string }).message ?? error) }, { status: 500 });
 

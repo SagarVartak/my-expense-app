@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { insertAuditLog } from "@/lib/auditLog";
 import { getSessionUser } from "@/lib/auth";
 import { orderSnapshotToUpdateRow } from "@/lib/orderLedgerSnapshots";
+import { updateOrderLedgerWithSchemaFallback } from "@/lib/orderLedgerSchemaFallback";
 import type { OrderLedgerSnapshotJson } from "@/lib/types";
 import { getServerSupabase } from "@/lib/serverSupabase";
 
@@ -57,13 +58,26 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     }
 
     const updatePayload = orderSnapshotToUpdateRow(proposed_payload);
-    const { data: updated, error: applyErr } = await supabase
-      .from("order_ledger")
-      .update(updatePayload)
-      .eq("id", orderId)
-      .select("*")
-      .single();
-    if (applyErr) return NextResponse.json({ error: applyErr.message }, { status: 500 });
+    const { data: updated, error: applyErr } = await updateOrderLedgerWithSchemaFallback(
+      supabase,
+      orderId,
+      updatePayload as Record<string, unknown>,
+    );
+    if (applyErr) return NextResponse.json({ error: String((applyErr as { message?: string }).message ?? applyErr) }, { status: 500 });
+
+    await supabase.from("printed_inventory_entries").delete().eq("order_id", orderId);
+    const cid = proposed_payload.cost_design_id;
+    if (cid) {
+      const u = Math.max(1, Math.floor(Number(proposed_payload.units ?? 1)));
+      const { error: invErr } = await supabase.from("printed_inventory_entries").insert({
+        cost_design_id: cid,
+        quantity: -u,
+        printer_name: `Order ${proposed_payload.order_uid}`,
+        created_by: user.username,
+        order_id: orderId,
+      });
+      if (invErr) return NextResponse.json({ error: invErr.message }, { status: 500 });
+    }
 
     const { error: reqUpdErr } = await supabase
       .from("order_ledger_change_requests")

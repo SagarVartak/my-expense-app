@@ -69,6 +69,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       : designTotal;
     const selling_price = num(body.selling_price);
     const net_profit = selling_price - total_cost_price;
+    const units = Math.max(1, Math.floor(num(body.units, 1)));
 
     const proposed_snapshot = {
       order_uid: String((orderRow as { order_uid?: string }).order_uid ?? ""),
@@ -88,6 +89,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       feedback: String(body.feedback ?? "").trim(),
       customer_behaviour: String(body.customer_behaviour ?? "").trim(),
       exclude_shipping_from_cost,
+      units,
     };
 
     const previous_snapshot = orderSnapshotFromRow(orderRow as Record<string, unknown>);

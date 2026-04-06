@@ -33,6 +33,7 @@ export default function EditOrderModal({ open, order, currencySymbol, onClose, o
   const [customerName, setCustomerName] = useState("");
   const [shippingAddress, setShippingAddress] = useState("");
   const [actualWeightG, setActualWeightG] = useState("");
+  const [units, setUnits] = useState("1");
   const [sellingPrice, setSellingPrice] = useState("");
   const [paymentMethod, setPaymentMethod] = useState(PAYMENT_METHODS[0]);
   const [paymentStatus, setPaymentStatus] = useState(PAYMENT_STATUS[0]);
@@ -66,6 +67,7 @@ export default function EditOrderModal({ open, order, currencySymbol, onClose, o
     setCustomerName(order.customer_name ?? "");
     setShippingAddress(order.shipping_address ?? "");
     setActualWeightG(String(order.actual_weight_g ?? ""));
+    setUnits(String(order.units ?? 1));
     setSellingPrice(String(order.selling_price ?? ""));
     setPaymentMethod(order.payment_method || PAYMENT_METHODS[0]);
     setPaymentStatus(order.payment_status || PAYMENT_STATUS[0]);
@@ -113,6 +115,7 @@ export default function EditOrderModal({ open, order, currencySymbol, onClose, o
           customer_name: customerName.trim(),
           shipping_address: shippingAddress.trim(),
           actual_weight_g: actualWeightG,
+          units: Math.max(1, Math.floor(Number(units) || 1)),
           selling_price: sellingNum,
           payment_method: paymentMethod,
           payment_status: paymentStatus,
@@ -218,19 +221,17 @@ export default function EditOrderModal({ open, order, currencySymbol, onClose, o
             />
           </div>
           <div>
-            <label>Total cost for order</label>
-            <div
-              className="muted"
-              style={{
-                padding: "10px 12px",
-                borderRadius: 12,
-                border: "1px solid rgba(255,255,255,0.14)",
-                background: "rgba(7, 12, 24, 0.52)",
-                fontWeight: 600,
-              }}
-            >
-              {costDesignId ? fmtOrderMoney(currencySymbol, effectiveTotalCost) : "—"}
-            </div>
+            <label htmlFor="eom-units">Units (inventory)</label>
+            <input
+              id="eom-units"
+              type="number"
+              inputMode="numeric"
+              min={1}
+              step={1}
+              value={units}
+              onChange={(e) => setUnits(e.target.value)}
+              title="Deducted from printed stock when this edit is approved"
+            />
           </div>
           <div>
             <label htmlFor="eom-selling">Selling price</label>
@@ -243,6 +244,23 @@ export default function EditOrderModal({ open, order, currencySymbol, onClose, o
               value={sellingPrice}
               onChange={(e) => setSellingPrice(e.target.value)}
             />
+          </div>
+        </div>
+
+        <div style={{ marginTop: 10 }}>
+          <label>Total cost for order</label>
+          <div
+            className="muted"
+            style={{
+              padding: "10px 12px",
+              borderRadius: 12,
+              border: "1px solid rgba(255,255,255,0.14)",
+              background: "rgba(7, 12, 24, 0.52)",
+              fontWeight: 600,
+              maxWidth: 320,
+            }}
+          >
+            {costDesignId ? fmtOrderMoney(currencySymbol, effectiveTotalCost) : "—"}
           </div>
         </div>
 

@@ -116,7 +116,8 @@ create table if not exists public.order_ledger (
   feedback text not null default '',
   customer_behaviour text not null default '',
   exclude_shipping_from_cost boolean not null default false,
-  approval_status text not null default 'approved' check (approval_status in ('pending', 'approved', 'rejected'))
+  approval_status text not null default 'approved' check (approval_status in ('pending', 'approved', 'rejected')),
+  units integer not null default 1 check (units > 0)
 );
 create index if not exists idx_order_ledger_order_date on public.order_ledger (order_date desc);
 create index if not exists idx_order_ledger_created_at on public.order_ledger (created_at desc);
@@ -154,6 +155,21 @@ create index if not exists idx_deletion_requests_created_at on public.deletion_r
 create unique index if not exists idx_deletion_requests_one_pending_per_resource
   on public.deletion_requests (resource_type, resource_id)
   where status = 'pending';
+
+create table if not exists public.printed_inventory_entries (
+  id uuid primary key default gen_random_uuid(),
+  cost_design_id uuid not null references public.cost_designs (id) on delete cascade,
+  quantity integer not null check (quantity <> 0),
+  printer_name text not null default '',
+  created_by text not null,
+  created_at timestamptz not null default now(),
+  order_id uuid references public.order_ledger (id) on delete cascade
+);
+create index if not exists idx_printed_inv_entries_design on public.printed_inventory_entries (cost_design_id);
+create index if not exists idx_printed_inv_entries_created on public.printed_inventory_entries (created_at desc);
+create unique index if not exists idx_printed_inv_entries_one_per_order
+  on public.printed_inventory_entries (order_id)
+  where order_id is not null;
 
 -- Optional: later enable RLS and policies once auth is wired.
 -- alter table public.expenses enable row level security;

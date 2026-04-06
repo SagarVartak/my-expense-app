@@ -19,6 +19,7 @@ export function orderSnapshotFromRow(r: Record<string, unknown>): OrderLedgerSna
     feedback: String(r.feedback ?? ""),
     customer_behaviour: String(r.customer_behaviour ?? ""),
     exclude_shipping_from_cost: Boolean(r.exclude_shipping_from_cost),
+    units: Math.max(1, Math.floor(Number(r.units ?? 1))),
   };
 }
 
@@ -41,5 +42,6 @@ export function orderSnapshotToUpdateRow(s: OrderLedgerSnapshotJson) {
     feedback: s.feedback,
     customer_behaviour: s.customer_behaviour,
     exclude_shipping_from_cost: s.exclude_shipping_from_cost,
+    units: s.units,
   };
 }

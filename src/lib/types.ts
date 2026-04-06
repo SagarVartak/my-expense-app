@@ -43,6 +43,23 @@ export type AuditLog = {
   created_at?: string;
 };
 
+export type PrintedInventoryDesignRow = {
+  cost_design_id: string;
+  keychain_design: string;
+  total_printed: number;
+  last_print_at: string | null;
+  last_printer_name: string | null;
+};
+
+export type PrintedInventoryEntry = {
+  id: string;
+  cost_design_id: string;
+  quantity: number;
+  printer_name: string;
+  created_by: string;
+  created_at: string;
+};
+
 export type CostDesign = {
   id: string;
   created_at: string;
@@ -112,6 +129,8 @@ export type OrderLedgerSnapshotJson = {
   feedback: string;
   customer_behaviour: string;
   exclude_shipping_from_cost: boolean;
+  /** Units sold / fulfilled; used for inventory when the order is approved. */
+  units: number;
 };
 
 export type OrderLedgerEntry = {
@@ -137,6 +156,8 @@ export type OrderLedgerEntry = {
   /** When true, design shipping was not counted in total_cost_price / net_profit for this order. */
   exclude_shipping_from_cost?: boolean;
   approval_status?: OrderApprovalStatus;
+  /** Units per order; defaults to 1 if column not yet migrated. */
+  units?: number;
 };
 
 export type OrderLedgerChangeRequest = {
