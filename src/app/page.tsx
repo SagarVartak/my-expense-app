@@ -6,12 +6,22 @@ import Login from "@/components/Login";
 import Summary from "@/components/Summary";
 import UserProfileMenu from "@/components/UserProfileMenu";
 import BrandMark from "@/components/BrandMark";
+import CostPriceCalculator from "@/components/CostPriceCalculator";
 import ExpensesTable from "@/components/ExpensesTable";
+import SavedCostDesignsTable from "@/components/SavedCostDesignsTable";
 import AuditTable from "@/components/AuditTable";
 import UserManagement from "@/components/UserManagement";
+import OrderLedger from "@/components/OrderLedger";
 import type { AppUser, AuditLog, Expense, SessionUser } from "@/lib/types";
 
-type NavId = "expenses" | "summary" | "audit" | "users";
+type NavId =
+  | "expenses"
+  | "summary"
+  | "costCalculator"
+  | "savedDesigns"
+  | "orderLedger"
+  | "audit"
+  | "users";
 
 const CATEGORIES = [
   "Filament/Material",
@@ -54,6 +64,7 @@ export default function Home() {
   const appName = "Expense tracker";
   const [activeNav, setActiveNav] = useState<NavId>("expenses");
   const sessionNavKey = useRef<string | null>(null);
+  const deepLinkNavApplied = useRef(false);
 
   useEffect(() => {
     if (!currentUser) {
@@ -67,6 +78,27 @@ export default function Home() {
       setActiveNav("expenses");
     }
   }, [currentUser]);
+
+  useEffect(() => {
+    if (!currentUser || !loaded || deepLinkNavApplied.current) return;
+    const params = new URLSearchParams(typeof window !== "undefined" ? window.location.search : "");
+    const nav = params.get("nav");
+    const map: Record<string, NavId> = {
+      expenses: "expenses",
+      summary: "summary",
+      costCalculator: "costCalculator",
+      savedDesigns: "savedDesigns",
+      orderLedger: "orderLedger",
+      audit: "audit",
+      users: "users",
+    };
+    if (!nav || !map[nav]) return;
+    const id = map[nav];
+    if ((id === "audit" || id === "users") && currentUser.role !== "admin") return;
+    deepLinkNavApplied.current = true;
+    setActiveNav(id);
+    window.history.replaceState(null, "", "/");
+  }, [currentUser, loaded]);
 
   useEffect(() => {
     const boot = async () => {
@@ -144,6 +176,12 @@ export default function Home() {
 
   const [refreshing, setRefreshing] = useState(false);
   const refreshLock = useRef(false);
+  const [costDesignRefresh, setCostDesignRefresh] = useState(0);
+  const [orderLedgerRefresh, setOrderLedgerRefresh] = useState(0);
+
+  const notifyCostDesignAudit = useCallback(() => {
+    if (currentUser?.role === "admin") void refreshLogs();
+  }, [currentUser?.role, refreshLogs]);
 
   const handleRefreshAll = useCallback(async () => {
     if (!currentUser || refreshLock.current) return;
@@ -155,6 +193,8 @@ export default function Home() {
         tasks.push(refreshLogs(), refreshUsers());
       }
       await Promise.all(tasks);
+      setCostDesignRefresh((k) => k + 1);
+      setOrderLedgerRefresh((k) => k + 1);
       toast.success("Data updated.");
     } catch {
       toast.error("Could not refresh data.");
@@ -471,6 +511,15 @@ export default function Home() {
           <button type="button" className={navBtnClass("summary")} onClick={() => setActiveNav("summary")}>
             Summary &amp; data
           </button>
+          <button type="button" className={navBtnClass("costCalculator")} onClick={() => setActiveNav("costCalculator")}>
+            Cost Price Calculator
+          </button>
+          <button type="button" className={navBtnClass("savedDesigns")} onClick={() => setActiveNav("savedDesigns")}>
+            Saved designs
+          </button>
+          <button type="button" className={navBtnClass("orderLedger")} onClick={() => setActiveNav("orderLedger")}>
+            Order Ledger
+          </button>
           {currentUser.role === "admin" ? (
             <>
               <button type="button" className={navBtnClass("audit")} onClick={() => setActiveNav("audit")}>
@@ -625,6 +674,40 @@ export default function Home() {
               onExportCsv={handleExportCSV}
               onExportJson={handleExportJSON}
               onImport={handleImport}
+            />
+          ) : null}
+
+          {activeNav === "costCalculator" ? (
+            <CostPriceCalculator
+              currencySymbol={currencySymbol}
+              currentUser={currentUser}
+              refreshSignal={costDesignRefresh}
+              onCostDesignMutated={notifyCostDesignAudit}
+            />
+          ) : null}
+
+          {activeNav === "savedDesigns" ? (
+            <>
+              <p className="muted" style={{ margin: "0 0 4px", fontSize: 14 }}>
+                Same data as under <strong style={{ color: "var(--text)" }}>Cost Price Calculator</strong> — add new
+                rows from the calculator tab.
+              </p>
+              <SavedCostDesignsTable
+                currencySymbol={currencySymbol}
+                currentUser={currentUser}
+                refreshSignal={costDesignRefresh}
+                onCostDesignMutated={notifyCostDesignAudit}
+                emptyHint='No designs saved yet. Open Cost Price Calculator and click "Add design".'
+              />
+            </>
+          ) : null}
+
+          {activeNav === "orderLedger" ? (
+            <OrderLedger
+              currencySymbol={currencySymbol}
+              currentUser={currentUser}
+              refreshSignal={orderLedgerRefresh}
+              onOrderMutated={notifyCostDesignAudit}
             />
           ) : null}
 

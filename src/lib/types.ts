@@ -43,3 +43,44 @@ export type AuditLog = {
   created_at?: string;
 };
 
+export type CostDesign = {
+  id: string;
+  created_at: string;
+  created_by: string;
+  keychain_design: string;
+  print_weight_g: number;
+  filament_cost_per_g: number;
+  electricity_fee: number;
+  chain_cost: number;
+  pouch_cost: number;
+  card_cost: number;
+  primer_cost: number;
+  clearcoat_cost: number;
+  shipping: number;
+  total_cost_price: number;
+};
+
+export type OrderLedgerEntry = {
+  id: string;
+  created_at: string;
+  created_by: string;
+  order_uid: string;
+  order_date: string;
+  cost_design_id: string | null;
+  design_name: string;
+  customer_name: string;
+  shipping_address: string;
+  actual_weight_g: number;
+  total_cost_price: number;
+  selling_price: number;
+  net_profit: number;
+  payment_method: string;
+  payment_status: string;
+  delivery_status: string;
+  source: string;
+  feedback: string;
+  customer_behaviour: string;
+  /** When true, design shipping was not counted in total_cost_price / net_profit for this order. */
+  exclude_shipping_from_cost?: boolean;
+};
+
