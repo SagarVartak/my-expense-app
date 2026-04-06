@@ -6,9 +6,13 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "cap:sync": "cap sync",
+    "cap:open:android": "cap open android",
+    "cap:android:debug": "cap sync && cd android && ./gradlew assembleDebug"
   },
   "dependencies": {
+    "@capacitor/core": "^7.2.0",
     "@supabase/supabase-js": "^2.101.0",
     "bcryptjs": "^3.0.3",
     "csv-parse": "^6.2.1",
@@ -18,6 +22,8 @@
     "react-toastify": "^11.0.5"
   },
   "devDependencies": {
+    "@capacitor/android": "^7.2.0",
+    "@capacitor/cli": "^7.2.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
