@@ -20,6 +20,14 @@ function isMissingExcludeShippingColumnError(err: unknown): boolean {
   );
 }
 
+function isMissingApprovalStatusColumnError(err: unknown): boolean {
+  const msg = String((err as { message?: string; code?: string })?.message ?? "");
+  const code = String((err as { code?: string })?.code ?? "");
+  return (
+    /approval_status|schema cache|could not find.*column/i.test(msg) || code === "PGRST204"
+  );
+}
+
 type OrderInsertRow = Record<string, unknown>;
 
 async function insertOrderLedgerWithFallback(
@@ -29,9 +37,21 @@ async function insertOrderLedgerWithFallback(
   let { data, error } = await supabase.from("order_ledger").insert(row).select("*").single();
   if (!error) return { data, error: null };
 
+  if (isMissingApprovalStatusColumnError(error) && "approval_status" in row) {
+    const { approval_status: _a, ...withoutApproval } = row;
+    const retry = await supabase.from("order_ledger").insert(withoutApproval).select("*").single();
+    return { data: retry.data as Record<string, unknown> | null, error: retry.error };
+  }
+
   if (isMissingExcludeShippingColumnError(error) && "exclude_shipping_from_cost" in row) {
     const { exclude_shipping_from_cost: _e, ...withoutFlag } = row;
     const retry = await supabase.from("order_ledger").insert(withoutFlag).select("*").single();
+    if (!retry.error) return { data: retry.data as Record<string, unknown> | null, error: null };
+    if (isMissingApprovalStatusColumnError(retry.error) && "approval_status" in row) {
+      const { approval_status: _a, exclude_shipping_from_cost: _e2, ...rest } = row;
+      const retry2 = await supabase.from("order_ledger").insert(rest).select("*").single();
+      return { data: retry2.data as Record<string, unknown> | null, error: retry2.error };
+    }
     return { data: retry.data as Record<string, unknown> | null, error: retry.error };
   }
 
@@ -72,7 +92,19 @@ export async function GET() {
       .order("order_date", { ascending: false })
       .order("created_at", { ascending: false });
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    return NextResponse.json({ orders: data ?? [] });
+
+    const rows = (data ?? []) as Record<string, unknown>[];
+    if (user.role === "admin") {
+      return NextResponse.json({ orders: rows });
+    }
+
+    const filtered = rows.filter((o) => {
+      const st = String(o.approval_status ?? "approved");
+      if (st === "approved") return true;
+      if (o.created_by === user.username && (st === "pending" || st === "rejected")) return true;
+      return false;
+    });
+    return NextResponse.json({ orders: filtered });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });
   }
@@ -114,7 +146,7 @@ export async function POST(req: Request) {
     const selling_price = num(body.selling_price);
     const net_profit = selling_price - total_cost_price;
 
-    const row = {
+    const row: OrderInsertRow = {
       order_uid: generateOrderUid(),
       order_date,
       cost_design_id: design.id,
@@ -133,19 +165,22 @@ export async function POST(req: Request) {
       customer_behaviour: String(body.customer_behaviour ?? "").trim(),
       exclude_shipping_from_cost,
       created_by: user.username,
+      approval_status: "pending",
     };
 
     const inserted = await insertOrderLedgerWithFallback(supabase, row);
     const { data, error } = inserted;
     if (error) return NextResponse.json({ error: String((error as { message?: string }).message ?? error) }, { status: 500 });
 
+    const exclude_shipping_from_cost_eff = Boolean(body.exclude_shipping_from_cost);
     const orderOut = data
       ? {
           ...data,
           exclude_shipping_from_cost:
             typeof data.exclude_shipping_from_cost === "boolean"
               ? data.exclude_shipping_from_cost
-              : exclude_shipping_from_cost,
+              : exclude_shipping_from_cost_eff,
+          approval_status: (data as { approval_status?: string }).approval_status ?? "pending",
         }
       : data;
 
@@ -153,11 +188,9 @@ export async function POST(req: Request) {
     const shipNote = exclude_shipping_from_cost ? ` — shipping fee (${money(designShipping)}) excluded from cost` : "";
     await insertAuditLog(
       user.username,
-      "ADD_ORDER_LEDGER",
-      `Order ${(orderOut as { order_uid?: string })?.order_uid ?? ""} — ${customer_name} — design "${row.design_name}" — sell ₹${money(selling_price)} — cost ₹${money(total_cost_price)} — net ₹${money(net_profit)} — payment ${row.payment_method} (${row.payment_status}) — delivery ${row.delivery_status}${shipNote}`,
+      "SUBMIT_ORDER_LEDGER",
+      `Order ${(orderOut as { order_uid?: string })?.order_uid ?? ""} — ${customer_name} — design "${row.design_name}" — sell ₹${money(selling_price)} — cost ₹${money(total_cost_price)} — net ₹${money(net_profit)} — payment ${row.payment_method} (${row.payment_status}) — delivery ${row.delivery_status}${shipNote} — pending admin approval`,
     );
-
-    if (orderOut) notifyDiscordOrderLedgerAdded(orderOut as Parameters<typeof notifyDiscordOrderLedgerAdded>[0], user.username);
 
     return NextResponse.json({ order: orderOut });
   } catch (e) {

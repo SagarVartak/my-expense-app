@@ -537,6 +537,25 @@ table.order-table th,
 table.order-table td {
   padding: 8px 6px;
 }
+.design-table-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.design-table-actions button:not(.delete) {
+  border: 1px solid rgba(78, 161, 255, 0.45);
+  border-radius: 10px;
+  padding: 6px 10px;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--text);
+  background: rgba(78, 161, 255, 0.18);
+  font-size: 12px;
+}
+.design-table-actions button:not(.delete):hover {
+  background: rgba(78, 161, 255, 0.26);
+}
 table.order-table thead th:first-child {
   position: sticky;
   left: 0;
@@ -809,6 +828,9 @@ tbody tr:hover {
   max-width: 420px;
   max-height: 90vh;
   overflow: auto;
+}
+.modal-panel--wide {
+  max-width: min(720px, 96vw);
 }
 .modal-panel--account {
   position: relative;

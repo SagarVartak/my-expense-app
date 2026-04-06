@@ -2,7 +2,9 @@
 
 import { useMemo, useState } from "react";
 import { toast } from "react-toastify";
-import SavedCostDesignsTable, { fmtMoney } from "@/components/SavedCostDesignsTable";
+import DecimalCostInput from "@/components/DecimalCostInput";
+import { fmtCurrency } from "@/lib/currencyFormat";
+import SavedCostDesignsTable from "@/components/SavedCostDesignsTable";
 import type { SessionUser } from "@/lib/types";
 
 type Props = {
@@ -11,6 +13,8 @@ type Props = {
   refreshSignal: number;
   /** Called after a design is saved (e.g. refresh admin audit log). */
   onCostDesignMutated?: () => void;
+  /** After an edit is submitted for approval (pending admin). */
+  onChangeRequestSubmitted?: () => void;
 };
 
 function parseN(s: string): number {
@@ -23,6 +27,7 @@ export default function CostPriceCalculator({
   currentUser,
   refreshSignal,
   onCostDesignMutated,
+  onChangeRequestSubmitted,
 }: Props) {
   const [keychainDesign, setKeychainDesign] = useState("");
   const [printWeightG, setPrintWeightG] = useState("");
@@ -33,6 +38,7 @@ export default function CostPriceCalculator({
   const [cardCost, setCardCost] = useState("");
   const [primerCost, setPrimerCost] = useState("");
   const [clearcoatCost, setClearcoatCost] = useState("");
+  const [keyCapsCost, setKeyCapsCost] = useState("");
   const [shipping, setShipping] = useState("");
   const [saveBump, setSaveBump] = useState(0);
 
@@ -52,6 +58,7 @@ export default function CostPriceCalculator({
       parseN(cardCost) +
       parseN(primerCost) +
       parseN(clearcoatCost) +
+      parseN(keyCapsCost) +
       parseN(shipping),
     [
       filamentLineCost,
@@ -61,11 +68,12 @@ export default function CostPriceCalculator({
       cardCost,
       primerCost,
       clearcoatCost,
+      keyCapsCost,
       shipping,
     ],
   );
 
-  const fmt = (n: number) => fmtMoney(currencySymbol, n);
+  const fmt = (n: number) => fmtCurrency(currencySymbol, n);
 
   const reset = () => {
     setKeychainDesign("");
@@ -77,6 +85,7 @@ export default function CostPriceCalculator({
     setCardCost("");
     setPrimerCost("");
     setClearcoatCost("");
+    setKeyCapsCost("");
     setShipping("");
   };
 
@@ -101,6 +110,7 @@ export default function CostPriceCalculator({
           card_cost: parseN(cardCost),
           primer_cost: parseN(primerCost),
           clearcoat_cost: parseN(clearcoatCost),
+          key_caps_cost: parseN(keyCapsCost),
           shipping: parseN(shipping),
         }),
       });
@@ -125,7 +135,7 @@ export default function CostPriceCalculator({
         <h2>Cost Price Calculator</h2>
         <p className="calc-lead muted">
           Keychain design costing. Total cost = (print weight × filament cost per g) + electricity + chain + pouch +
-          card + primer + clearcoat + shipping.
+          card + primer + clearcoat + key caps + shipping.
         </p>
 
         <div style={{ marginTop: 14 }}>
@@ -144,41 +154,29 @@ export default function CostPriceCalculator({
         <div className="row3">
           <div>
             <label htmlFor="cpc-weight">Print weight (g)</label>
-            <input
+            <DecimalCostInput
               id="cpc-weight"
-              type="number"
-              inputMode="decimal"
-              step="any"
-              min="0"
               placeholder="0"
               value={printWeightG}
-              onChange={(e) => setPrintWeightG(e.target.value)}
+              onValueChange={setPrintWeightG}
             />
           </div>
           <div>
             <label htmlFor="cpc-filament">Filament cost per (g)</label>
-            <input
+            <DecimalCostInput
               id="cpc-filament"
-              type="number"
-              inputMode="decimal"
-              step="any"
-              min="0"
               placeholder={`${currencySymbol} per gram`}
               value={filamentCostPerG}
-              onChange={(e) => setFilamentCostPerG(e.target.value)}
+              onValueChange={setFilamentCostPerG}
             />
           </div>
           <div>
             <label htmlFor="cpc-electricity">Electricity fee</label>
-            <input
+            <DecimalCostInput
               id="cpc-electricity"
-              type="number"
-              inputMode="decimal"
-              step="any"
-              min="0"
               placeholder="0"
               value={electricityFee}
-              onChange={(e) => setElectricityFee(e.target.value)}
+              onValueChange={setElectricityFee}
             />
           </div>
         </div>
@@ -190,77 +188,35 @@ export default function CostPriceCalculator({
         <div className="row3">
           <div>
             <label htmlFor="cpc-chain">Chain cost</label>
-            <input
-              id="cpc-chain"
-              type="number"
-              inputMode="decimal"
-              step="any"
-              min="0"
-              value={chainCost}
-              onChange={(e) => setChainCost(e.target.value)}
-            />
+            <DecimalCostInput id="cpc-chain" value={chainCost} onValueChange={setChainCost} />
           </div>
           <div>
             <label htmlFor="cpc-pouch">Pouch cost</label>
-            <input
-              id="cpc-pouch"
-              type="number"
-              inputMode="decimal"
-              step="any"
-              min="0"
-              value={pouchCost}
-              onChange={(e) => setPouchCost(e.target.value)}
-            />
+            <DecimalCostInput id="cpc-pouch" value={pouchCost} onValueChange={setPouchCost} />
           </div>
           <div>
             <label htmlFor="cpc-card">Card cost</label>
-            <input
-              id="cpc-card"
-              type="number"
-              inputMode="decimal"
-              step="any"
-              min="0"
-              value={cardCost}
-              onChange={(e) => setCardCost(e.target.value)}
-            />
+            <DecimalCostInput id="cpc-card" value={cardCost} onValueChange={setCardCost} />
           </div>
         </div>
         <div className="row3" style={{ marginTop: 10 }}>
           <div>
             <label htmlFor="cpc-primer">Primer cost</label>
-            <input
-              id="cpc-primer"
-              type="number"
-              inputMode="decimal"
-              step="any"
-              min="0"
-              value={primerCost}
-              onChange={(e) => setPrimerCost(e.target.value)}
-            />
+            <DecimalCostInput id="cpc-primer" value={primerCost} onValueChange={setPrimerCost} />
           </div>
           <div>
             <label htmlFor="cpc-clearcoat">Clearcoat cost</label>
-            <input
-              id="cpc-clearcoat"
-              type="number"
-              inputMode="decimal"
-              step="any"
-              min="0"
-              value={clearcoatCost}
-              onChange={(e) => setClearcoatCost(e.target.value)}
-            />
+            <DecimalCostInput id="cpc-clearcoat" value={clearcoatCost} onValueChange={setClearcoatCost} />
           </div>
           <div>
+            <label htmlFor="cpc-keycaps">Key caps</label>
+            <DecimalCostInput id="cpc-keycaps" value={keyCapsCost} onValueChange={setKeyCapsCost} />
+          </div>
+        </div>
+        <div className="row3" style={{ marginTop: 10 }}>
+          <div className="span-row3">
             <label htmlFor="cpc-shipping">Shipping</label>
-            <input
-              id="cpc-shipping"
-              type="number"
-              inputMode="decimal"
-              step="any"
-              min="0"
-              value={shipping}
-              onChange={(e) => setShipping(e.target.value)}
-            />
+            <DecimalCostInput id="cpc-shipping" value={shipping} onValueChange={setShipping} />
           </div>
         </div>
 
@@ -288,6 +244,7 @@ export default function CostPriceCalculator({
         refreshSignal={refreshSignal}
         saveBump={saveBump}
         onCostDesignMutated={onCostDesignMutated}
+        onChangeRequestSubmitted={onChangeRequestSubmitted}
       />
     </>
   );

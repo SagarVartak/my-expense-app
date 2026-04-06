@@ -6,7 +6,6 @@ import { getServerSupabase } from "@/lib/serverSupabase";
 export async function DELETE(_: Request, { params }: { params: Promise<{ id: string }> }) {
   const user = await getSessionUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (user.role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const { id } = await params;
   if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 });
@@ -15,10 +14,20 @@ export async function DELETE(_: Request, { params }: { params: Promise<{ id: str
     const supabase = getServerSupabase();
     const { data: row, error: fetchErr } = await supabase
       .from("order_ledger")
-      .select("id, order_uid, customer_name, design_name")
+      .select("id, order_uid, customer_name, design_name, created_by, approval_status")
       .eq("id", id)
       .maybeSingle();
     if (fetchErr || !row) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+    const approval = String((row as { approval_status?: string }).approval_status ?? "approved");
+    const isOwner = row.created_by === user.username;
+
+    if (user.role !== "admin") {
+      if (!isOwner) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      if (approval === "approved") {
+        return NextResponse.json({ error: "Only an admin can delete approved orders." }, { status: 403 });
+      }
+    }
 
     const { error } = await supabase.from("order_ledger").delete().eq("id", id);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });

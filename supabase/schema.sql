@@ -70,12 +70,30 @@ create table if not exists public.cost_designs (
   card_cost numeric(14, 2) not null default 0,
   primer_cost numeric(14, 2) not null default 0,
   clearcoat_cost numeric(14, 2) not null default 0,
+  key_caps_cost numeric(14, 2) not null default 0,
   shipping numeric(14, 2) not null default 0,
   total_cost_price numeric(14, 2) not null,
   selling_price numeric(14, 2) not null default 0,
   net_profit numeric(14, 2) not null default 0
 );
 create index if not exists idx_cost_designs_created_at on public.cost_designs (created_at desc);
+
+create table if not exists public.cost_design_change_requests (
+  id uuid primary key default gen_random_uuid(),
+  cost_design_id uuid not null references public.cost_designs (id) on delete cascade,
+  status text not null default 'pending' check (status in ('pending', 'approved', 'rejected')),
+  requested_by text not null,
+  created_at timestamptz not null default now(),
+  reviewed_by text,
+  reviewed_at timestamptz,
+  reject_reason text not null default '',
+  previous_snapshot jsonb not null,
+  proposed_snapshot jsonb not null
+);
+create index if not exists idx_cdcr_created_at on public.cost_design_change_requests (created_at desc);
+create unique index if not exists idx_cdcr_one_pending_per_design
+  on public.cost_design_change_requests (cost_design_id)
+  where status = 'pending';
 
 create table if not exists public.order_ledger (
   id uuid primary key default gen_random_uuid(),
@@ -97,10 +115,28 @@ create table if not exists public.order_ledger (
   source text not null default '',
   feedback text not null default '',
   customer_behaviour text not null default '',
-  exclude_shipping_from_cost boolean not null default false
+  exclude_shipping_from_cost boolean not null default false,
+  approval_status text not null default 'approved' check (approval_status in ('pending', 'approved', 'rejected'))
 );
 create index if not exists idx_order_ledger_order_date on public.order_ledger (order_date desc);
 create index if not exists idx_order_ledger_created_at on public.order_ledger (created_at desc);
+
+create table if not exists public.order_ledger_change_requests (
+  id uuid primary key default gen_random_uuid(),
+  order_id uuid not null references public.order_ledger (id) on delete cascade,
+  status text not null default 'pending' check (status in ('pending', 'approved', 'rejected')),
+  requested_by text not null,
+  created_at timestamptz not null default now(),
+  reviewed_by text,
+  reviewed_at timestamptz,
+  reject_reason text not null default '',
+  previous_snapshot jsonb not null,
+  proposed_snapshot jsonb not null
+);
+create index if not exists idx_olcr_created_at on public.order_ledger_change_requests (created_at desc);
+create unique index if not exists idx_olcr_one_pending_per_order
+  on public.order_ledger_change_requests (order_id)
+  where status = 'pending';
 
 -- Optional: later enable RLS and policies once auth is wired.
 -- alter table public.expenses enable row level security;

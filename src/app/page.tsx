@@ -11,7 +11,10 @@ import ExpensesTable from "@/components/ExpensesTable";
 import SavedCostDesignsTable from "@/components/SavedCostDesignsTable";
 import AuditTable from "@/components/AuditTable";
 import UserManagement from "@/components/UserManagement";
+import DesignChangeRequestsPanel from "@/components/DesignChangeRequestsPanel";
+import OrderApprovalsPanel from "@/components/OrderApprovalsPanel";
 import OrderLedger from "@/components/OrderLedger";
+import OrdersTable from "@/components/OrdersTable";
 import type { AppUser, AuditLog, Expense, SessionUser } from "@/lib/types";
 
 type NavId =
@@ -19,7 +22,9 @@ type NavId =
   | "summary"
   | "costCalculator"
   | "savedDesigns"
+  | "orders"
   | "orderLedger"
+  | "designApprovals"
   | "audit"
   | "users";
 
@@ -88,13 +93,15 @@ export default function Home() {
       summary: "summary",
       costCalculator: "costCalculator",
       savedDesigns: "savedDesigns",
+      orders: "orders",
       orderLedger: "orderLedger",
+      designApprovals: "designApprovals",
       audit: "audit",
       users: "users",
     };
     if (!nav || !map[nav]) return;
     const id = map[nav];
-    if ((id === "audit" || id === "users") && currentUser.role !== "admin") return;
+    if ((id === "audit" || id === "users" || id === "designApprovals") && currentUser.role !== "admin") return;
     deepLinkNavApplied.current = true;
     setActiveNav(id);
     window.history.replaceState(null, "", "/");
@@ -178,6 +185,7 @@ export default function Home() {
   const refreshLock = useRef(false);
   const [costDesignRefresh, setCostDesignRefresh] = useState(0);
   const [orderLedgerRefresh, setOrderLedgerRefresh] = useState(0);
+  const [approvalRefresh, setApprovalRefresh] = useState(0);
 
   const notifyCostDesignAudit = useCallback(() => {
     if (currentUser?.role === "admin") void refreshLogs();
@@ -195,6 +203,7 @@ export default function Home() {
       await Promise.all(tasks);
       setCostDesignRefresh((k) => k + 1);
       setOrderLedgerRefresh((k) => k + 1);
+      setApprovalRefresh((k) => k + 1);
       toast.success("Data updated.");
     } catch {
       toast.error("Could not refresh data.");
@@ -517,11 +526,21 @@ export default function Home() {
           <button type="button" className={navBtnClass("savedDesigns")} onClick={() => setActiveNav("savedDesigns")}>
             Saved designs
           </button>
+          <button type="button" className={navBtnClass("orders")} onClick={() => setActiveNav("orders")}>
+            Orders
+          </button>
           <button type="button" className={navBtnClass("orderLedger")} onClick={() => setActiveNav("orderLedger")}>
             Order Ledger
           </button>
           {currentUser.role === "admin" ? (
             <>
+              <button
+                type="button"
+                className={navBtnClass("designApprovals")}
+                onClick={() => setActiveNav("designApprovals")}
+              >
+                Approvals
+              </button>
               <button type="button" className={navBtnClass("audit")} onClick={() => setActiveNav("audit")}>
                 Audit log
               </button>
@@ -683,6 +702,10 @@ export default function Home() {
               currentUser={currentUser}
               refreshSignal={costDesignRefresh}
               onCostDesignMutated={notifyCostDesignAudit}
+              onChangeRequestSubmitted={() => {
+                setApprovalRefresh((k) => k + 1);
+                notifyCostDesignAudit();
+              }}
             />
           ) : null}
 
@@ -697,7 +720,29 @@ export default function Home() {
                 currentUser={currentUser}
                 refreshSignal={costDesignRefresh}
                 onCostDesignMutated={notifyCostDesignAudit}
+                onChangeRequestSubmitted={() => {
+                  setApprovalRefresh((k) => k + 1);
+                  notifyCostDesignAudit();
+                }}
                 emptyHint='No designs saved yet. Open Cost Price Calculator and click "Add design".'
+              />
+            </>
+          ) : null}
+
+          {activeNav === "orders" ? (
+            <>
+              <p className="muted" style={{ margin: "0 0 4px", fontSize: 14 }}>
+                All orders from the ledger. Add new orders under <strong style={{ color: "var(--text)" }}>Order Ledger</strong>.
+              </p>
+              <OrdersTable
+                currencySymbol={currencySymbol}
+                currentUser={currentUser}
+                refreshSignal={orderLedgerRefresh}
+                onOrderMutated={() => {
+                  notifyCostDesignAudit();
+                  setApprovalRefresh((k) => k + 1);
+                  setOrderLedgerRefresh((k) => k + 1);
+                }}
               />
             </>
           ) : null}
@@ -705,12 +750,30 @@ export default function Home() {
           {activeNav === "orderLedger" ? (
             <OrderLedger
               currencySymbol={currencySymbol}
-              currentUser={currentUser}
-              refreshSignal={orderLedgerRefresh}
-              onOrderMutated={notifyCostDesignAudit}
+              onOrderMutated={() => {
+                notifyCostDesignAudit();
+                setApprovalRefresh((k) => k + 1);
+                setOrderLedgerRefresh((k) => k + 1);
+              }}
             />
           ) : null}
 
+          {activeNav === "designApprovals" && currentUser.role === "admin" ? (
+            <>
+              <DesignChangeRequestsPanel
+                currencySymbol={currencySymbol}
+                refreshSignal={approvalRefresh}
+                onMutated={notifyCostDesignAudit}
+                onApplied={() => setCostDesignRefresh((k) => k + 1)}
+              />
+              <OrderApprovalsPanel
+                currencySymbol={currencySymbol}
+                refreshSignal={approvalRefresh}
+                onMutated={notifyCostDesignAudit}
+                onOrderApplied={() => setOrderLedgerRefresh((k) => k + 1)}
+              />
+            </>
+          ) : null}
           {activeNav === "audit" && currentUser.role === "admin" ? <AuditTable logs={auditLogs} /> : null}
           {activeNav === "users" && currentUser.role === "admin" ? (
             <UserManagement users={users} onCreate={createUser} onToggleActive={toggleUser} />

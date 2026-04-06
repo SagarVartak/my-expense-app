@@ -56,8 +56,62 @@ export type CostDesign = {
   card_cost: number;
   primer_cost: number;
   clearcoat_cost: number;
+  /** Present after migration_cost_designs_key_caps.sql; treat missing as 0. */
+  key_caps_cost?: number;
   shipping: number;
   total_cost_price: number;
+};
+
+export type CostDesignChangeRequestStatus = "pending" | "approved" | "rejected";
+
+export type CostDesignSnapshotJson = {
+  keychain_design: string;
+  print_weight_g: number;
+  filament_cost_per_g: number;
+  electricity_fee: number;
+  chain_cost: number;
+  pouch_cost: number;
+  card_cost: number;
+  primer_cost: number;
+  clearcoat_cost: number;
+  key_caps_cost: number;
+  shipping: number;
+  total_cost_price: number;
+};
+
+export type CostDesignChangeRequest = {
+  id: string;
+  cost_design_id: string;
+  status: CostDesignChangeRequestStatus;
+  requested_by: string;
+  created_at: string;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  reject_reason: string;
+  previous_snapshot: CostDesignSnapshotJson;
+  proposed_snapshot: CostDesignSnapshotJson;
+};
+
+export type OrderApprovalStatus = "pending" | "approved" | "rejected";
+
+export type OrderLedgerSnapshotJson = {
+  order_uid: string;
+  order_date: string;
+  cost_design_id: string | null;
+  design_name: string;
+  customer_name: string;
+  shipping_address: string;
+  actual_weight_g: number;
+  total_cost_price: number;
+  selling_price: number;
+  net_profit: number;
+  payment_method: string;
+  payment_status: string;
+  delivery_status: string;
+  source: string;
+  feedback: string;
+  customer_behaviour: string;
+  exclude_shipping_from_cost: boolean;
 };
 
 export type OrderLedgerEntry = {
@@ -82,5 +136,19 @@ export type OrderLedgerEntry = {
   customer_behaviour: string;
   /** When true, design shipping was not counted in total_cost_price / net_profit for this order. */
   exclude_shipping_from_cost?: boolean;
+  approval_status?: OrderApprovalStatus;
+};
+
+export type OrderLedgerChangeRequest = {
+  id: string;
+  order_id: string;
+  status: CostDesignChangeRequestStatus;
+  requested_by: string;
+  created_at: string;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  reject_reason: string;
+  previous_snapshot: OrderLedgerSnapshotJson;
+  proposed_snapshot: OrderLedgerSnapshotJson;
 };
 

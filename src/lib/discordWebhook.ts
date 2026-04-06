@@ -71,6 +71,7 @@ type CostDesignRow = {
   card_cost: number;
   primer_cost: number;
   clearcoat_cost: number;
+  key_caps_cost: number;
   shipping: number;
   total_cost_price: number;
   created_at?: string | null;
@@ -80,9 +81,17 @@ type CostDesignRow = {
  * Optional Discord when DISCORD_WEBHOOK_COST_CALCULATION_URL is set (server-only).
  * @see https://discord.com/developers/docs/resources/webhook#execute-webhook
  */
-export function notifyDiscordCostDesignSaved(design: CostDesignRow, savedBy: string): void {
+export function notifyDiscordCostDesignSaved(
+  design: CostDesignRow,
+  savedBy: string,
+  options?: { variant?: "create" | "update" },
+): void {
   const url = process.env.DISCORD_WEBHOOK_COST_CALCULATION_URL?.trim();
   if (!url) return;
+
+  const variant = options?.variant ?? "create";
+  const title = variant === "update" ? "Cost design updated" : "Cost design saved";
+  const actorLabel = variant === "update" ? "Updated by" : "Saved by";
 
   const currency = process.env.DISCORD_CURRENCY_SYMBOL?.trim() || "₹";
   const fmt = (n: number) => `${currency}${Number(n).toFixed(2)}`;
@@ -91,8 +100,8 @@ export function notifyDiscordCostDesignSaved(design: CostDesignRow, savedBy: str
   const filamentLine = pw * fpg;
 
   const embed: Record<string, unknown> = {
-    title: "Cost design saved",
-    color: 0x60adff,
+    title,
+    color: variant === "update" ? 0xf0b429 : 0x60adff,
     fields: [
       { name: "Design", value: truncate(design.keychain_design, 1024), inline: false },
       { name: "Print weight (g)", value: truncate(String(pw), 1024), inline: true },
@@ -104,9 +113,10 @@ export function notifyDiscordCostDesignSaved(design: CostDesignRow, savedBy: str
       { name: "Card cost", value: truncate(fmt(Number(design.card_cost)), 1024), inline: true },
       { name: "Primer cost", value: truncate(fmt(Number(design.primer_cost)), 1024), inline: true },
       { name: "Clearcoat cost", value: truncate(fmt(Number(design.clearcoat_cost)), 1024), inline: true },
+      { name: "Key caps", value: truncate(fmt(Number(design.key_caps_cost)), 1024), inline: true },
       { name: "Shipping", value: truncate(fmt(Number(design.shipping)), 1024), inline: true },
       { name: "Total cost price", value: truncate(fmt(Number(design.total_cost_price)), 1024), inline: false },
-      { name: "Saved by", value: truncate(savedBy, 1024), inline: true },
+      { name: actorLabel, value: truncate(savedBy, 1024), inline: true },
     ],
     footer: { text: "Expense tracker · Cost calculator" },
   };

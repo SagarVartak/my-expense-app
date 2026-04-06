@@ -1,37 +1,9 @@
 import { NextResponse } from "next/server";
 import { insertAuditLog } from "@/lib/auditLog";
 import { getSessionUser } from "@/lib/auth";
+import { computeTotalCostPrice, num } from "@/lib/costDesignCalc";
 import { notifyDiscordCostDesignSaved } from "@/lib/discordWebhook";
 import { getServerSupabase } from "@/lib/serverSupabase";
-
-function num(v: unknown, def = 0): number {
-  const n = typeof v === "number" ? v : parseFloat(String(v ?? ""));
-  return Number.isFinite(n) ? n : def;
-}
-
-function computeTotalCostPrice(input: {
-  print_weight_g: number;
-  filament_cost_per_g: number;
-  electricity_fee: number;
-  chain_cost: number;
-  pouch_cost: number;
-  card_cost: number;
-  primer_cost: number;
-  clearcoat_cost: number;
-  shipping: number;
-}) {
-  const filamentLine = input.print_weight_g * input.filament_cost_per_g;
-  return (
-    filamentLine +
-    input.electricity_fee +
-    input.chain_cost +
-    input.pouch_cost +
-    input.card_cost +
-    input.primer_cost +
-    input.clearcoat_cost +
-    input.shipping
-  );
-}
 
 export async function GET() {
   const user = await getSessionUser();
@@ -66,6 +38,7 @@ export async function POST(req: Request) {
     const card_cost = num(body.card_cost);
     const primer_cost = num(body.primer_cost);
     const clearcoat_cost = num(body.clearcoat_cost);
+    const key_caps_cost = num(body.key_caps_cost);
     const shipping = num(body.shipping);
 
     const total_cost_price = computeTotalCostPrice({
@@ -77,6 +50,7 @@ export async function POST(req: Request) {
       card_cost,
       primer_cost,
       clearcoat_cost,
+      key_caps_cost,
       shipping,
     });
 
@@ -91,6 +65,7 @@ export async function POST(req: Request) {
       card_cost,
       primer_cost,
       clearcoat_cost,
+      key_caps_cost,
       shipping,
       total_cost_price,
       selling_price: 0,
@@ -120,6 +95,7 @@ export async function POST(req: Request) {
           card_cost: Number(data.card_cost),
           primer_cost: Number(data.primer_cost),
           clearcoat_cost: Number(data.clearcoat_cost),
+          key_caps_cost: Number(data.key_caps_cost ?? 0),
           shipping: Number(data.shipping),
           total_cost_price: Number(data.total_cost_price),
           created_at: data.created_at as string | null | undefined,
