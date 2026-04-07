@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "react-toastify";
+import { clientFetch } from "@/lib/clientFetch";
 import { fmtCurrency } from "@/lib/currencyFormat";
 import type { OrderLedgerChangeRequest, OrderLedgerEntry } from "@/lib/types";
 
@@ -23,17 +24,21 @@ export default function OrderApprovalsPanel({ currencySymbol, refreshSignal, onM
     if (!soft || !loaded.current) setLoading(true);
     try {
       const [or, er] = await Promise.all([
-        fetch("/api/order-ledger", { cache: "no-store" }),
-        fetch("/api/order-ledger-change-requests", { cache: "no-store" }),
+        clientFetch("/api/order-ledger", { cache: "no-store" }),
+        clientFetch("/api/order-ledger-change-requests", { cache: "no-store" }),
       ]);
       const od = await or.json();
       const ed = await er.json();
       if (!or.ok) {
-        toast.error(od.error || "Could not load orders.");
+        toast.error(
+          or.status === 401 ? "Session expired or not signed in. Refresh and sign in again." : od.error || "Could not load orders.",
+        );
         return;
       }
-      if (!er.ok && ed.error) {
-        toast.error(ed.error);
+      if (!er.ok) {
+        toast.error(
+          er.status === 401 ? "Session expired or not signed in. Refresh and sign in again." : ed.error || "Could not load edit requests.",
+        );
         return;
       }
       const orders = (od.orders || []) as OrderLedgerEntry[];
@@ -55,7 +60,7 @@ export default function OrderApprovalsPanel({ currencySymbol, refreshSignal, onM
     if (!window.confirm(`Approve new order ${o.order_uid}?`)) return;
     setBusy(o.id);
     try {
-      const res = await fetch(`/api/order-ledger/${o.id}/approval`, {
+      const res = await clientFetch(`/api/order-ledger/${o.id}/approval`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "approve" }),
@@ -80,7 +85,7 @@ export default function OrderApprovalsPanel({ currencySymbol, refreshSignal, onM
     const reason = window.prompt("Reject reason (optional):") ?? "";
     setBusy(o.id);
     try {
-      const res = await fetch(`/api/order-ledger/${o.id}/approval`, {
+      const res = await clientFetch(`/api/order-ledger/${o.id}/approval`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "reject", reject_reason: reason.trim() }),
@@ -104,7 +109,7 @@ export default function OrderApprovalsPanel({ currencySymbol, refreshSignal, onM
     if (!window.confirm("Apply this order edit?")) return;
     setBusy(r.id);
     try {
-      const res = await fetch(`/api/order-ledger-change-requests/${r.id}`, {
+      const res = await clientFetch(`/api/order-ledger-change-requests/${r.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "approve" }),
@@ -129,7 +134,7 @@ export default function OrderApprovalsPanel({ currencySymbol, refreshSignal, onM
     const reason = window.prompt("Reject reason (optional):") ?? "";
     setBusy(r.id);
     try {
-      const res = await fetch(`/api/order-ledger-change-requests/${r.id}`, {
+      const res = await clientFetch(`/api/order-ledger-change-requests/${r.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "reject", reject_reason: reason.trim() }),

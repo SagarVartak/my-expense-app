@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "react-toastify";
+import { clientFetch } from "@/lib/clientFetch";
 import { fmtCurrency } from "@/lib/currencyFormat";
 import type { DeletionRequest, DeletionResourceType } from "@/lib/types";
 
@@ -39,10 +40,12 @@ export default function DeletionApprovalsPanel({ currencySymbol, refreshSignal, 
   const load = useCallback(async (soft: boolean) => {
     if (!soft || !loaded.current) setLoading(true);
     try {
-      const res = await fetch("/api/deletion-requests?scope=all", { cache: "no-store" });
+      const res = await clientFetch("/api/deletion-requests?scope=all", { cache: "no-store" });
       const data = await res.json();
       if (!res.ok) {
-        toast.error(data.error || "Could not load deletion requests.");
+        toast.error(
+          res.status === 401 ? "Session expired or not signed in. Refresh and sign in again." : data.error || "Could not load deletion requests.",
+        );
         return;
       }
       setRequests(((data.requests || []) as DeletionRequest[]).filter((r) => r.status === "pending"));
@@ -62,7 +65,7 @@ export default function DeletionApprovalsPanel({ currencySymbol, refreshSignal, 
     if (!window.confirm(`Permanently delete this ${resourceLabel(r.resource_type).toLowerCase()}?`)) return;
     setBusy(r.id);
     try {
-      const res = await fetch(`/api/deletion-requests/${r.id}`, {
+      const res = await clientFetch(`/api/deletion-requests/${r.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "approve" }),
@@ -86,7 +89,7 @@ export default function DeletionApprovalsPanel({ currencySymbol, refreshSignal, 
     const reason = window.prompt("Reject reason (optional):") ?? "";
     setBusy(r.id);
     try {
-      const res = await fetch(`/api/deletion-requests/${r.id}`, {
+      const res = await clientFetch(`/api/deletion-requests/${r.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "reject", reject_reason: reason.trim() }),

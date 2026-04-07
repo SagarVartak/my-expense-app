@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import BrandMark from "@/components/BrandMark";
+import { clientFetch } from "@/lib/clientFetch";
 import { toast } from "react-toastify";
 import type { SessionUser } from "@/lib/types";
 
@@ -19,7 +20,7 @@ export default function Login({ onSuccess }: Props) {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch("/api/auth/login", {
+      const res = await clientFetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password }),

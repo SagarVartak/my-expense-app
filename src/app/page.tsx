@@ -17,6 +17,7 @@ import DeletionApprovalsPanel from "@/components/DeletionApprovalsPanel";
 import OrderLedger from "@/components/OrderLedger";
 import OrdersTable from "@/components/OrdersTable";
 import PrintedInventory from "@/components/PrintedInventory";
+import { clientFetch } from "@/lib/clientFetch";
 import type { AppUser, AuditLog, Expense, SessionUser } from "@/lib/types";
 
 type NavId =
@@ -124,7 +125,7 @@ export default function Home() {
   useEffect(() => {
     const boot = async () => {
       try {
-        const meRes = await fetch("/api/auth/me", { cache: "no-store" });
+        const meRes = await clientFetch("/api/auth/me", { cache: "no-store" });
         if (meRes.ok) {
           const meData = await meRes.json();
           setCurrentUser(meData.user);
@@ -137,7 +138,7 @@ export default function Home() {
   }, []);
 
   const writeAudit = async (action: string, details: string) => {
-    await fetch("/api/audit", {
+    await clientFetch("/api/audit", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action, details }),
@@ -151,14 +152,14 @@ export default function Home() {
     if (filterEndDate) qs.set("endDate", filterEndDate);
     if (filterEntryUid.trim() && currentUser?.role === "admin") qs.set("entryUid", filterEntryUid.trim());
     const suffix = qs.toString() ? `?${qs.toString()}` : "";
-    const res = await fetch(`/api/expenses${suffix}`, { cache: "no-store" });
+    const res = await clientFetch(`/api/expenses${suffix}`, { cache: "no-store" });
     const data = await res.json();
     setExpenses((data.expenses || []) as Expense[]);
   }, [currentUser?.role, filterEndDate, filterEntryUid, filterPaidBy, filterStartDate]);
 
   const refreshLogs = useCallback(async () => {
     if (currentUser?.role !== "admin") return;
-    const res = await fetch("/api/audit", { cache: "no-store" });
+    const res = await clientFetch("/api/audit", { cache: "no-store" });
     if (!res.ok) return;
     const data = await res.json();
     setAuditLogs((data.logs || []) as AuditLog[]);
@@ -166,14 +167,14 @@ export default function Home() {
 
   const refreshUsers = useCallback(async () => {
     if (currentUser?.role !== "admin") return;
-    const res = await fetch("/api/users", { cache: "no-store" });
+    const res = await clientFetch("/api/users", { cache: "no-store" });
     if (!res.ok) return;
     const data = await res.json();
     setUsers((data.users || []) as AppUser[]);
   }, [currentUser?.role]);
 
   const refreshMemberNames = useCallback(async () => {
-    const res = await fetch("/api/team-members", { cache: "no-store" });
+    const res = await clientFetch("/api/team-members", { cache: "no-store" });
     if (!res.ok) return;
     const data = await res.json();
     setMemberNames((data.names || []) as string[]);
@@ -254,7 +255,7 @@ export default function Home() {
 
   const handleLogout = async () => {
     await writeAudit("LOGOUT", "User logged out");
-    await fetch("/api/auth/logout", { method: "POST" });
+    await clientFetch("/api/auth/logout", { method: "POST" });
     toast.info("Signed out.");
     setCurrentUser(null);
     setExpenses([]);
@@ -284,7 +285,7 @@ export default function Home() {
       payment_method: paymentMethod,
       description: description.trim(),
     };
-    const res = await fetch("/api/expenses", {
+    const res = await clientFetch("/api/expenses", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -307,7 +308,7 @@ export default function Home() {
 
   const handleDeleteExpense = async (id: string) => {
     const target = expenses.find((e) => e.id === id);
-    const res = await fetch(`/api/expenses/${id}`, { method: "DELETE" });
+    const res = await clientFetch(`/api/expenses/${id}`, { method: "DELETE" });
     if (!res.ok) {
       let msg = "Could not delete expense.";
       try {
@@ -336,7 +337,7 @@ export default function Home() {
     if (!window.confirm("Reset all expense data? This cannot be undone.")) return;
     const toDelete = [...expenses];
     for (const row of toDelete) {
-      await fetch(`/api/expenses/${row.id}`, { method: "DELETE" });
+      await clientFetch(`/api/expenses/${row.id}`, { method: "DELETE" });
     }
     await writeAudit("RESET_ALL", `Reset all data, removed ${toDelete.length} expenses`);
     await refreshExpenses();
@@ -394,7 +395,7 @@ export default function Home() {
         const parsed = JSON.parse(text);
         const rows: Expense[] = Array.isArray(parsed) ? parsed : parsed?.expenses || [];
         for (const row of rows) {
-          await fetch("/api/expenses", {
+          await clientFetch("/api/expenses", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -408,7 +409,7 @@ export default function Home() {
           });
         }
       } else {
-        const importRes = await fetch("/api/expenses/import-csv", {
+        const importRes = await clientFetch("/api/expenses/import-csv", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ csvText: text }),
@@ -425,7 +426,7 @@ export default function Home() {
   };
 
   const createUser = async (payload: { username: string; password: string; role: "admin" | "member" }) => {
-    const res = await fetch("/api/users", {
+    const res = await clientFetch("/api/users", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -449,7 +450,7 @@ export default function Home() {
   };
 
   const toggleUser = async (id: string, active: boolean) => {
-    const res = await fetch(`/api/users/${id}`, {
+    const res = await clientFetch(`/api/users/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ active }),
@@ -516,7 +517,7 @@ export default function Home() {
             if (u.role === "admin") {
               void refreshLogs();
               void (async () => {
-                const res = await fetch("/api/users", { cache: "no-store" });
+                const res = await clientFetch("/api/users", { cache: "no-store" });
                 if (!res.ok) return;
                 const data = await res.json();
                 setUsers((data.users || []) as AppUser[]);

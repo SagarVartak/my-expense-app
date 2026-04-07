@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "react-toastify";
+import { clientFetch } from "@/lib/clientFetch";
 import { fmtCurrency } from "@/lib/currencyFormat";
 import type { CostDesignChangeRequest } from "@/lib/types";
 
@@ -51,10 +52,12 @@ export default function DesignChangeRequestsPanel({ currencySymbol, refreshSigna
   const load = useCallback(async (soft: boolean) => {
     if (!soft || !loaded.current) setLoading(true);
     try {
-      const res = await fetch("/api/cost-design-change-requests", { cache: "no-store" });
+      const res = await clientFetch("/api/cost-design-change-requests", { cache: "no-store" });
       const data = await res.json();
       if (!res.ok) {
-        toast.error(data.error || "Could not load change requests.");
+        toast.error(
+          res.status === 401 ? "Session expired or not signed in. Refresh and sign in again." : data.error || "Could not load change requests.",
+        );
         return;
       }
       setRequests((data.requests || []) as CostDesignChangeRequest[]);
@@ -74,7 +77,7 @@ export default function DesignChangeRequestsPanel({ currencySymbol, refreshSigna
     if (!window.confirm(`Apply proposed values to "${r.proposed_snapshot.keychain_design}"?`)) return;
     setBusyId(r.id);
     try {
-      const res = await fetch(`/api/cost-design-change-requests/${r.id}`, {
+      const res = await clientFetch(`/api/cost-design-change-requests/${r.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "approve" }),
@@ -99,7 +102,7 @@ export default function DesignChangeRequestsPanel({ currencySymbol, refreshSigna
     const reason = window.prompt("Reject reason (optional):") ?? "";
     setBusyId(r.id);
     try {
-      const res = await fetch(`/api/cost-design-change-requests/${r.id}`, {
+      const res = await clientFetch(`/api/cost-design-change-requests/${r.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "reject", reject_reason: reason.trim() }),
