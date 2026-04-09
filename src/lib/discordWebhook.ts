@@ -3,6 +3,8 @@
  * @see https://discord.com/developers/docs/resources/webhook#execute-webhook
  */
 
+import { APP_NAME } from "@/lib/appMeta";
+
 type ExpenseRow = {
   id: string;
   entry_uid?: string | null;
@@ -45,7 +47,7 @@ export function notifyDiscordExpenseAdded(expense: ExpenseRow, addedBy: string):
       { name: "Added by", value: truncate(addedBy, 1024), inline: true },
       { name: "Description", value: truncate(description, 1024), inline: false },
     ],
-    footer: { text: "Expense tracker" },
+    footer: { text: APP_NAME },
   };
   if (expense.created_at) {
     const d = new Date(expense.created_at);
@@ -118,7 +120,7 @@ export function notifyDiscordCostDesignSaved(
       { name: "Total cost price", value: truncate(fmt(Number(design.total_cost_price)), 1024), inline: false },
       { name: actorLabel, value: truncate(savedBy, 1024), inline: true },
     ],
-    footer: { text: "Expense tracker · Cost calculator" },
+    footer: { text: `${APP_NAME} · Cost calculator` },
   };
   if (design.created_at) {
     const d = new Date(design.created_at);
@@ -202,7 +204,7 @@ export function notifyDiscordOrderLedgerAdded(order: OrderLedgerRow, addedBy: st
       { name: "Shipping address", value: truncate(ship, 1024), inline: false },
       { name: "Added by", value: truncate(addedBy, 1024), inline: true },
     ],
-    footer: { text: "Expense tracker · Order ledger" },
+    footer: { text: `${APP_NAME} · Order ledger` },
   };
   if (order.created_at) {
     const d = new Date(order.created_at);

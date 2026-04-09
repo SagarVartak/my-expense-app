@@ -2,9 +2,15 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "react-toastify";
+import InlineSpinner from "@/components/InlineSpinner";
 import { clientFetch } from "@/lib/clientFetch";
 import { fmtCurrency } from "@/lib/currencyFormat";
-import type { OrderLedgerChangeRequest, OrderLedgerEntry } from "@/lib/types";
+import {
+  ORDER_SNAPSHOT_DIFF_FIELDS,
+  getChangedOrderSnapshotFields,
+  type OrderSnapshotFieldKind,
+} from "@/lib/orderSnapshotDiff";
+import type { OrderLedgerChangeRequest, OrderLedgerEntry, OrderLedgerSnapshotJson } from "@/lib/types";
 
 type Props = {
   currencySymbol: string;
@@ -13,12 +19,28 @@ type Props = {
   onOrderApplied?: () => void;
 };
 
+function fmtCell(currencySymbol: string, kind: OrderSnapshotFieldKind, v: unknown): string {
+  if (kind === "bool") return v ? "Yes" : "No";
+  if (kind === "money") {
+    const n = Number(v);
+    return Number.isFinite(n) ? fmtCurrency(currencySymbol, n) : "—";
+  }
+  if (kind === "number") {
+    const n = Number(v);
+    return Number.isFinite(n) ? String(n) : "—";
+  }
+  if (kind === "date") return String(v ?? "").slice(0, 10) || "—";
+  const s = String(v ?? "").trim();
+  return s || "—";
+}
+
 export default function OrderApprovalsPanel({ currencySymbol, refreshSignal, onMutated, onOrderApplied }: Props) {
   const [newOrders, setNewOrders] = useState<OrderLedgerEntry[]>([]);
   const [editReqs, setEditReqs] = useState<OrderLedgerChangeRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const loaded = useRef(false);
   const [busy, setBusy] = useState<string | null>(null);
+  const [expandedEditId, setExpandedEditId] = useState<string | null>(null);
 
   const load = useCallback(async (soft: boolean) => {
     if (!soft || !loaded.current) setLoading(true);
@@ -122,6 +144,7 @@ export default function OrderApprovalsPanel({ currencySymbol, refreshSignal, onM
       toast.success("Order edit applied.");
       onOrderApplied?.();
       onMutated?.();
+      setExpandedEditId(null);
       void load(true);
     } catch {
       toast.error("Could not approve.");
@@ -146,12 +169,25 @@ export default function OrderApprovalsPanel({ currencySymbol, refreshSignal, onM
       }
       toast.info("Edit rejected.");
       onMutated?.();
+      setExpandedEditId(null);
       void load(true);
     } catch {
       toast.error("Could not reject.");
     } finally {
       setBusy(null);
     }
+  };
+
+  const renderEditDiffRows = (prev: OrderLedgerSnapshotJson, next: OrderLedgerSnapshotJson) => {
+    const changed = getChangedOrderSnapshotFields(prev, next);
+    const rows = changed.length > 0 ? changed : ORDER_SNAPSHOT_DIFF_FIELDS;
+    return rows.map(({ key, label, kind }) => (
+      <tr key={key}>
+        <td>{label}</td>
+        <td className="order-td-wrap">{fmtCell(currencySymbol, kind, prev[key])}</td>
+        <td className="order-td-wrap">{fmtCell(currencySymbol, kind, next[key])}</td>
+      </tr>
+    ));
   };
 
   const pendingCount = newOrders.length + editReqs.length;
@@ -165,7 +201,7 @@ export default function OrderApprovalsPanel({ currencySymbol, refreshSignal, onM
 
       <h3 style={{ fontSize: 15, marginBottom: 8 }}>New orders</h3>
       <div className="design-table-wrap">
-        <table className="design-table">
+        <table className="design-table design-table--approval">
           <thead>
             <tr>
               <th>Order ID</th>
@@ -194,7 +230,13 @@ export default function OrderApprovalsPanel({ currencySymbol, refreshSignal, onM
                   <td>
                     <div className="design-table-actions">
                       <button type="button" disabled={busy === o.id} onClick={() => void approveNew(o)}>
-                        {busy === o.id ? "…" : "Approve"}
+                        {busy === o.id ? (
+                          <>
+                            <InlineSpinner /> …
+                          </>
+                        ) : (
+                          "Approve"
+                        )}
                       </button>
                       <button className="delete" type="button" disabled={busy === o.id} onClick={() => void rejectNew(o)}>
                         Reject
@@ -209,12 +251,15 @@ export default function OrderApprovalsPanel({ currencySymbol, refreshSignal, onM
       </div>
 
       <h3 style={{ fontSize: 15, margin: "20px 0 8px" }}>Order edit requests</h3>
+      <p className="muted" style={{ margin: "0 0 10px", fontSize: 12, lineHeight: 1.45 }}>
+        Each row lists every field that differs from the current order. Expand to see a full before/after table for that request.
+      </p>
       <div className="design-table-wrap">
-        <table className="design-table">
+        <table className="design-table design-table--approval">
           <thead>
             <tr>
               <th>Order ID</th>
-              <th className="amt">Total before → after</th>
+              <th>Changes</th>
               <th>By</th>
               <th className="design-th-action">Actions</th>
             </tr>
@@ -227,32 +272,94 @@ export default function OrderApprovalsPanel({ currencySymbol, refreshSignal, onM
                 </td>
               </tr>
             ) : (
-              editReqs.map((r) => (
-                <tr key={r.id}>
-                  <td style={{ fontSize: 12 }}>{r.proposed_snapshot.order_uid}</td>
-                  <td className="amt" style={{ fontSize: 12, whiteSpace: "nowrap" }}>
-                    {fmtCurrency(currencySymbol, r.previous_snapshot.total_cost_price)} →{" "}
-                    {fmtCurrency(currencySymbol, r.proposed_snapshot.total_cost_price)}
-                  </td>
-                  <td className="muted" style={{ fontSize: 12 }}>
-                    {r.requested_by}
-                  </td>
-                  <td>
-                    <div className="design-table-actions">
-                      <button type="button" disabled={busy === r.id} onClick={() => void approveEdit(r)}>
-                        {busy === r.id ? "…" : "Approve"}
+              editReqs.map((r) => {
+                const prev = r.previous_snapshot;
+                const next = r.proposed_snapshot;
+                const changed = getChangedOrderSnapshotFields(prev, next);
+                const summary =
+                  changed.length === 0
+                    ? "No differences detected (compare snapshots below)."
+                    : `${changed.length} field${changed.length === 1 ? "" : "s"}: ${changed.map((c) => c.label).join(", ")}`;
+                return (
+                  <tr key={r.id}>
+                    <td style={{ fontSize: 12 }}>{r.proposed_snapshot.order_uid}</td>
+                    <td style={{ fontSize: 12, lineHeight: 1.4, whiteSpace: "normal", maxWidth: 280 }}>
+                      <div>{summary}</div>
+                      <div className="muted" style={{ marginTop: 4 }}>
+                        Total {fmtCurrency(currencySymbol, prev.total_cost_price)} → {fmtCurrency(currencySymbol, next.total_cost_price)} · Net{" "}
+                        {fmtCurrency(currencySymbol, prev.net_profit)} → {fmtCurrency(currencySymbol, next.net_profit)}
+                      </div>
+                      <button
+                        type="button"
+                        className="btn-ghost"
+                        style={{ marginTop: 8, padding: "6px 10px", fontSize: 12 }}
+                        onClick={() => setExpandedEditId((id) => (id === r.id ? null : r.id))}
+                      >
+                        {expandedEditId === r.id ? "Hide diff" : "View full diff"}
                       </button>
-                      <button className="delete" type="button" disabled={busy === r.id} onClick={() => void rejectEdit(r)}>
-                        Reject
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))
+                    </td>
+                    <td className="muted" style={{ fontSize: 12 }}>
+                      {r.requested_by}
+                    </td>
+                    <td>
+                      <div className="design-table-actions">
+                        <button type="button" disabled={busy === r.id} onClick={() => void approveEdit(r)}>
+                          {busy === r.id ? (
+                            <>
+                              <InlineSpinner /> …
+                            </>
+                          ) : (
+                            "Approve"
+                          )}
+                        </button>
+                        <button className="delete" type="button" disabled={busy === r.id} onClick={() => void rejectEdit(r)}>
+                          Reject
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>
       </div>
+
+      {expandedEditId ? (
+        <div className="card" style={{ marginTop: 14, padding: 14 }}>
+          {(() => {
+            const r = editReqs.find((x) => x.id === expandedEditId);
+            if (!r) return null;
+            const prev = r.previous_snapshot;
+            const next = r.proposed_snapshot;
+            const changed = getChangedOrderSnapshotFields(prev, next);
+            return (
+              <>
+                <h3 style={{ margin: "0 0 10px", fontSize: 15 }}>
+                  {changed.length > 0 ? `Changed fields (${changed.length})` : "Full snapshot compare"}
+                </h3>
+                <p className="muted" style={{ margin: "0 0 10px", fontSize: 12 }}>
+                  {changed.length > 0
+                    ? "Only values that differ are listed. Money values use your currency symbol."
+                    : "Showing all tracked fields because no differences were detected by the comparator."}
+                </p>
+                <div className="design-table-wrap">
+                  <table className="design-table design-table--approval design-table--diff">
+                    <thead>
+                      <tr>
+                        <th>Field</th>
+                        <th>Previous</th>
+                        <th>Proposed</th>
+                      </tr>
+                    </thead>
+                    <tbody>{renderEditDiffRows(prev, next)}</tbody>
+                  </table>
+                </div>
+              </>
+            );
+          })()}
+        </div>
+      ) : null}
     </section>
   );
 }

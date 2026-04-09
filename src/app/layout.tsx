@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
 import ToastifyProvider from "@/components/ToastifyProvider";
+import { APP_DESCRIPTION, APP_NAME } from "@/lib/appMeta";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -14,15 +15,23 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const siteUrl =
+  process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ||
+  (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
+
+/** Favicon / Apple icons: `src/app/icon.png` + `apple-icon.png` (Next.js file convention). */
 export const metadata: Metadata = {
-  title: "Expense tracker",
-  description: "Team expense tracking, summaries, and backups.",
-  icons: { icon: "/logo.svg" },
-  appleWebApp: { capable: true, title: "Expense tracker", statusBarStyle: "black-translucent" },
+  metadataBase: new URL(siteUrl),
+  title: APP_NAME,
+  description: APP_DESCRIPTION,
+  appleWebApp: { capable: true, title: APP_NAME, statusBarStyle: "black-translucent" },
 };
 
 export const viewport: Viewport = {
-  themeColor: "#1B1B3A",
+  themeColor: "#090b10",
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 5,
 };
 
 export default function RootLayout({
@@ -35,7 +44,7 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">
+      <body className="min-h-full flex flex-col bg-[var(--bg)] text-[var(--text)]">
         <ServiceWorkerRegister />
         <ToastifyProvider>{children}</ToastifyProvider>
       </body>

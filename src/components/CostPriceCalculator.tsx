@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { toast } from "react-toastify";
 import DecimalCostInput from "@/components/DecimalCostInput";
+import InlineSpinner from "@/components/InlineSpinner";
 import { fmtCurrency } from "@/lib/currencyFormat";
 import SavedCostDesignsTable from "@/components/SavedCostDesignsTable";
 import type { SessionUser } from "@/lib/types";
@@ -232,8 +233,14 @@ export default function CostPriceCalculator({
         </div>
 
         <div className="btnbar" style={{ marginTop: 16 }}>
-          <button type="button" onClick={handleAddDesign} disabled={saving}>
-            {saving ? "Saving…" : "Add design"}
+          <button type="button" onClick={() => void handleAddDesign()} disabled={saving} aria-busy={saving}>
+            {saving ? (
+              <>
+                <InlineSpinner /> Saving…
+              </>
+            ) : (
+              "Add design"
+            )}
           </button>
           <button type="button" onClick={reset} disabled={saving}>
             Clear form

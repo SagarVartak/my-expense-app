@@ -3,11 +3,11 @@
  * Service worker — offline fallback + faster repeat visits for static assets.
  * Scope: /. Registered only in production (see ServiceWorkerRegister).
  */
-const VERSION = "expense-pwa-v1";
+const VERSION = "expense-pwa-v2";
 const STATIC_CACHE = `${VERSION}-static`;
 const PAGE_CACHE = `${VERSION}-pages`;
 
-const PRECACHE_URLS = ["/offline.html", "/logo.svg"];
+const PRECACHE_URLS = ["/offline.html", "/icon.png"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -37,6 +37,46 @@ function isSameOrigin(url, base) {
     return false;
   }
 }
+
+self.addEventListener("push", (event) => {
+  let payload = { title: "MaDViNS Studio", body: "New approval or update.", url: "/" };
+  try {
+    if (event.data) {
+      const j = event.data.json();
+      payload = { ...payload, ...j };
+    }
+  } catch {
+    try {
+      const t = event.data && event.data.text();
+      if (t) payload.body = String(t);
+    } catch {
+      /* ignore */
+    }
+  }
+  const openUrl = payload.url || "/";
+  event.waitUntil(
+    self.registration.showNotification(payload.title || "MaDViNS Studio", {
+      body: payload.body || "",
+      icon: "/icon.png",
+      badge: "/icon.png",
+      data: { url: openUrl },
+    }),
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const url = event.notification.data && event.notification.data.url ? event.notification.data.url : "/";
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
+      for (let i = 0; i < clientList.length; i++) {
+        const c = clientList[i];
+        if ("focus" in c) return c.focus();
+      }
+      if (self.clients.openWindow) return self.clients.openWindow(url);
+    }),
+  );
+});
 
 self.addEventListener("fetch", (event) => {
   const { request } = event;

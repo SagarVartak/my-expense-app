@@ -1,29 +1,30 @@
 import type { MetadataRoute } from "next";
+import { APP_DESCRIPTION, APP_LOGO_PATH, APP_NAME } from "@/lib/appMeta";
 
 /** Web App Manifest — installable PWA metadata (see also public/sw.js). */
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "MaD ViNS Studio — Expense tracker",
-    short_name: "Expense tracker",
-    description: "Team expense tracking, orders, inventory, and approvals.",
+    name: APP_NAME,
+    short_name: APP_NAME,
+    description: APP_DESCRIPTION,
     start_url: "/",
     scope: "/",
     display: "standalone",
     orientation: "portrait-primary",
-    background_color: "#1B1B3A",
-    theme_color: "#1B1B3A",
+    background_color: "#090b10",
+    theme_color: "#090b10",
     categories: ["finance", "productivity", "business"],
     icons: [
       {
-        src: "/logo.svg",
-        sizes: "any",
-        type: "image/svg+xml",
+        src: APP_LOGO_PATH,
+        sizes: "512x512",
+        type: "image/png",
         purpose: "any",
       },
       {
-        src: "/logo.svg",
+        src: APP_LOGO_PATH,
         sizes: "512x512",
-        type: "image/svg+xml",
+        type: "image/png",
         purpose: "maskable",
       },
     ],

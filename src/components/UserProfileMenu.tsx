@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import AccountSettingsModal from "@/components/AccountSettingsModal";
+import AdminPushToggle from "@/components/AdminPushToggle";
 import type { SessionUser } from "@/lib/types";
 
 type Props = {
@@ -77,6 +78,12 @@ export default function UserProfileMenu({ user, currencySymbol, onLogout, onUser
           <div className="profile-dropdown-row">
             Currency: <strong>{currencySymbol}</strong>
           </div>
+          {user.role === "admin" ? (
+            <>
+              <div className="hr" style={{ margin: "10px 0", opacity: 0.5 }} />
+              <AdminPushToggle onDone={() => setOpen(false)} />
+            </>
+          ) : null}
           <div className="profile-dropdown-actions profile-dropdown-actions-stack">
             <button
               type="button"

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "react-toastify";
+import InlineSpinner from "@/components/InlineSpinner";
 import Login from "@/components/Login";
 import Summary from "@/components/Summary";
 import UserProfileMenu from "@/components/UserProfileMenu";
@@ -18,6 +19,7 @@ import OrderLedger from "@/components/OrderLedger";
 import OrdersTable from "@/components/OrdersTable";
 import PrintedInventory from "@/components/PrintedInventory";
 import { clientFetch } from "@/lib/clientFetch";
+import { APP_DESCRIPTION, APP_NAME } from "@/lib/appMeta";
 import type { AppUser, AuditLog, Expense, SessionUser } from "@/lib/types";
 
 type NavId =
@@ -71,8 +73,11 @@ export default function Home() {
   const [filterEndDate, setFilterEndDate] = useState("");
   const [filterEntryUid, setFilterEntryUid] = useState("");
   const [memberNames, setMemberNames] = useState<string[]>([]);
+  const [expenseSaving, setExpenseSaving] = useState(false);
+  const [expenseDeletingId, setExpenseDeletingId] = useState<string | null>(null);
+  const [resetAllBusy, setResetAllBusy] = useState(false);
   const currencySymbol = "₹";
-  const appName = "Expense tracker";
+  const appName = APP_NAME;
   const [activeNav, setActiveNav] = useState<NavId>("inventory");
   const sessionNavKey = useRef<string | null>(null);
   const deepLinkNavApplied = useRef(false);
@@ -310,70 +315,85 @@ export default function Home() {
       payment_method: paymentMethod,
       description: description.trim(),
     };
-    const res = await clientFetch("/api/expenses", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    if (!res.ok) {
-      toast.error("Failed to add expense.");
-      return;
+    setExpenseSaving(true);
+    try {
+      const res = await clientFetch("/api/expenses", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        toast.error("Failed to add expense.");
+        return;
+      }
+
+      await writeAudit("ADD_EXPENSE", `${payload.paid_by} spent ${currencySymbol}${money(payload.amount)} on ${payload.category}`);
+      await refreshExpenses();
+      if (currentUser?.role === "admin") await refreshLogs();
+
+      setAmount("");
+      setPaidBy("");
+      setDescription("");
+      setPaymentMethod(PAYMENT_METHODS[0]);
+      toast.success("Expense added.");
+    } finally {
+      setExpenseSaving(false);
     }
-
-    await writeAudit("ADD_EXPENSE", `${payload.paid_by} spent ${currencySymbol}${money(payload.amount)} on ${payload.category}`);
-    await refreshExpenses();
-    if (currentUser?.role === "admin") await refreshLogs();
-
-    setAmount("");
-    setPaidBy("");
-    setDescription("");
-    setPaymentMethod(PAYMENT_METHODS[0]);
-    toast.success("Expense added.");
   };
 
   const handleDeleteExpense = async (id: string) => {
     const target = expenses.find((e) => e.id === id);
-    const res = await clientFetch(`/api/expenses/${id}`, { method: "DELETE" });
-    if (!res.ok) {
-      let msg = "Could not delete expense.";
-      try {
-        const d = await res.json();
-        if (typeof d.error === "string") msg = d.error;
-      } catch {
-        /* ignore */
+    setExpenseDeletingId(id);
+    try {
+      const res = await clientFetch(`/api/expenses/${id}`, { method: "DELETE" });
+      if (!res.ok) {
+        let msg = "Could not delete expense.";
+        try {
+          const d = await res.json();
+          if (typeof d.error === "string") msg = d.error;
+        } catch {
+          /* ignore */
+        }
+        toast.error(msg);
+        return;
       }
-      toast.error(msg);
-      return;
-    }
 
-    if (target) {
-      const ref = target.entry_uid ? `${target.entry_uid} ` : "";
-      await writeAudit(
-        "DELETE_EXPENSE",
-        `${ref}${target.paid_by} ${currencySymbol}${money(Number(target.amount))} (${target.category})`,
-      );
+      if (target) {
+        const ref = target.entry_uid ? `${target.entry_uid} ` : "";
+        await writeAudit(
+          "DELETE_EXPENSE",
+          `${ref}${target.paid_by} ${currencySymbol}${money(Number(target.amount))} (${target.category})`,
+        );
+      }
+      await refreshExpenses();
+      if (currentUser?.role === "admin") await refreshLogs();
+      toast.success(target?.entry_uid ? `Deleted ${target.entry_uid}.` : "Expense deleted.");
+    } finally {
+      setExpenseDeletingId(null);
     }
-    await refreshExpenses();
-    if (currentUser?.role === "admin") await refreshLogs();
-    toast.success(target?.entry_uid ? `Deleted ${target.entry_uid}.` : "Expense deleted.");
   };
 
   const handleResetAll = async () => {
     if (!window.confirm("Reset all expense data? This cannot be undone.")) return;
     const toDelete = [...expenses];
-    for (const row of toDelete) {
-      await clientFetch(`/api/expenses/${row.id}`, { method: "DELETE" });
-    }
-    await writeAudit("RESET_ALL", `Reset all data, removed ${toDelete.length} expenses`);
-    await refreshExpenses();
-    if (currentUser?.role === "admin") await refreshLogs();
+    setResetAllBusy(true);
+    try {
+      for (const row of toDelete) {
+        await clientFetch(`/api/expenses/${row.id}`, { method: "DELETE" });
+      }
+      await writeAudit("RESET_ALL", `Reset all data, removed ${toDelete.length} expenses`);
+      await refreshExpenses();
+      if (currentUser?.role === "admin") await refreshLogs();
 
-    setDate(todayISO());
-    setAmount("");
-    setPaidBy("");
-    setDescription("");
-    setPaymentMethod(PAYMENT_METHODS[0]);
-    toast.success(`All expense data cleared (${toDelete.length} removed).`);
+      setDate(todayISO());
+      setAmount("");
+      setPaidBy("");
+      setDescription("");
+      setPaymentMethod(PAYMENT_METHODS[0]);
+      toast.success(`All expense data cleared (${toDelete.length} removed).`);
+    } finally {
+      setResetAllBusy(false);
+    }
   };
 
   const csvEscape = (value: string | number) => {
@@ -511,7 +531,7 @@ export default function Home() {
           <BrandMark size={44} className="app-brand-mark" />
           <div className="app-brand-text">
             <h1 className="app-brand-title">{appName}</h1>
-            <p className="app-brand-sub">Track spending, totals by payer, and backups.</p>
+            <p className="app-brand-sub">{APP_DESCRIPTION}</p>
           </div>
         </div>
         <div className="app-top-actions">
@@ -674,14 +694,32 @@ export default function Home() {
                   <textarea id="description" value={description} onChange={(e) => setDescription(e.target.value)} />
                 </div>
                 <div className="btnbar">
-                  <button type="button" onClick={handleAddExpense}>
-                    Add Expense
+                  <button type="button" onClick={() => void handleAddExpense()} disabled={expenseSaving} aria-busy={expenseSaving}>
+                    {expenseSaving ? (
+                      <>
+                        <InlineSpinner /> Saving…
+                      </>
+                    ) : (
+                      "Add Expense"
+                    )}
                   </button>
                 </div>
                 <div className="footer-actions">
                   <div className="muted">{expenses.length} expenses</div>
-                  <button className="btn-danger" type="button" onClick={handleResetAll}>
-                    Reset All Data
+                  <button
+                    className="btn-danger"
+                    type="button"
+                    onClick={() => void handleResetAll()}
+                    disabled={resetAllBusy}
+                    aria-busy={resetAllBusy}
+                  >
+                    {resetAllBusy ? (
+                      <>
+                        <InlineSpinner /> Resetting…
+                      </>
+                    ) : (
+                      "Reset All Data"
+                    )}
                   </button>
                 </div>
               </section>
@@ -746,6 +784,7 @@ export default function Home() {
                 currencySymbol={currencySymbol}
                 canDelete={currentUser.role === "admin"}
                 onDelete={handleDeleteExpense}
+                deletingId={expenseDeletingId}
               />
             </>
           ) : null}

@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { insertAuditLog } from "@/lib/auditLog";
 import { getSessionUser } from "@/lib/auth";
+import { appBaseUrl } from "@/lib/email";
 import { notifyDiscordOrderLedgerAdded } from "@/lib/discordWebhook";
+import { notifyAdminsPendingApproval } from "@/lib/notifyAdmins";
 import { generateOrderUid } from "@/lib/entryUid";
 import { insertOrderLedgerWithSchemaFallback } from "@/lib/orderLedgerSchemaFallback";
 import { getServerSupabase } from "@/lib/serverSupabase";
@@ -126,6 +128,16 @@ export async function POST(req: Request) {
       "SUBMIT_ORDER_LEDGER",
       `Order ${(orderOut as { order_uid?: string })?.order_uid ?? ""} — ${customer_name} — design "${row.design_name}" — sell ₹${money(selling_price)} — cost ₹${money(total_cost_price)} — net ₹${money(net_profit)} — payment ${row.payment_method} (${row.payment_status}) — delivery ${row.delivery_status}${shipNote} — pending admin approval`,
     );
+
+    if (user.role !== "admin") {
+      const uid = String((orderOut as { order_uid?: string })?.order_uid ?? "");
+      const open = `${appBaseUrl()}/?nav=orderApprovals`;
+      void notifyAdminsPendingApproval({
+        subject: `New order pending approval: ${uid}`,
+        htmlBody: `<p><strong>${user.username}</strong> submitted a new order <strong>${uid}</strong> (${customer_name}).</p><p><a href="${open}">Open Order approvals</a></p>`,
+        openPath: "/?nav=orderApprovals",
+      }).catch(() => {});
+    }
 
     return NextResponse.json({ order: orderOut });
   } catch (e) {

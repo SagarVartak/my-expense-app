@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { insertAuditLog } from "@/lib/auditLog";
 import { getSessionUser } from "@/lib/auth";
+import { appBaseUrl } from "@/lib/email";
+import { notifyAdminsPendingApproval } from "@/lib/notifyAdmins";
 import { snapshotFromDbRow, snapshotFromRequestBody } from "@/lib/costDesignSnapshots";
 import { getServerSupabase } from "@/lib/serverSupabase";
 
@@ -59,6 +61,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       "SUBMIT_COST_DESIGN_CHANGE",
       `Request for design "${previous_snapshot.keychain_design}" — total ₹${money(previous_snapshot.total_cost_price)} → ₹${money(proposed_snapshot.total_cost_price)} (pending approval)`,
     );
+
+    if (user.role !== "admin") {
+      const open = `${appBaseUrl()}/?nav=designChangeApprovals`;
+      void notifyAdminsPendingApproval({
+        subject: `Design change pending: ${previous_snapshot.keychain_design}`,
+        htmlBody: `<p><strong>${user.username}</strong> submitted changes for design <strong>${previous_snapshot.keychain_design}</strong>.</p><p>Total cost: ₹${money(previous_snapshot.total_cost_price)} → ₹${money(proposed_snapshot.total_cost_price)}.</p><p><a href="${open}">Open Design change approvals</a></p>`,
+        openPath: "/?nav=designChangeApprovals",
+      }).catch(() => {});
+    }
 
     return NextResponse.json({ request: created });
   } catch (e) {

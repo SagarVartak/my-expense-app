@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { insertAuditLog } from "@/lib/auditLog";
 import { getSessionUser } from "@/lib/auth";
+import { appBaseUrl } from "@/lib/email";
+import { notifyAdminsPendingApproval } from "@/lib/notifyAdmins";
 import { orderSnapshotFromRow } from "@/lib/orderLedgerSnapshots";
 import { getServerSupabase } from "@/lib/serverSupabase";
 
@@ -122,6 +124,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       "SUBMIT_ORDER_EDIT_REQUEST",
       `Edit request for order ${proposed_snapshot.order_uid} — total ₹${money(previous_snapshot.total_cost_price)} → ₹${money(proposed_snapshot.total_cost_price)} (pending approval)`,
     );
+
+    if (user.role !== "admin") {
+      const open = `${appBaseUrl()}/?nav=orderApprovals`;
+      void notifyAdminsPendingApproval({
+        subject: `Order edit pending: ${proposed_snapshot.order_uid}`,
+        htmlBody: `<p><strong>${user.username}</strong> requested changes to order <strong>${proposed_snapshot.order_uid}</strong> (${proposed_snapshot.customer_name}).</p><p>Total cost: ₹${money(previous_snapshot.total_cost_price)} → ₹${money(proposed_snapshot.total_cost_price)}.</p><p><a href="${open}">Open Order approvals</a></p>`,
+        openPath: "/?nav=orderApprovals",
+      }).catch(() => {});
+    }
 
     return NextResponse.json({ request: created });
   } catch (e) {

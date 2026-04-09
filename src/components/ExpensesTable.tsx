@@ -2,14 +2,18 @@
 
 import type { Expense } from "@/lib/types";
 
+import InlineSpinner from "@/components/InlineSpinner";
+
 type Props = {
   expenses: Expense[];
   currencySymbol: string;
   canDelete: boolean;
   onDelete: (id: string) => void;
+  /** While set, that row’s delete button shows a spinner. */
+  deletingId?: string | null;
 };
 
-export default function ExpensesTable({ expenses, currencySymbol, canDelete, onDelete }: Props) {
+export default function ExpensesTable({ expenses, currencySymbol, canDelete, onDelete, deletingId }: Props) {
   const cols = canDelete ? 7 : 6;
   return (
     <div className="card">
@@ -55,8 +59,20 @@ export default function ExpensesTable({ expenses, currencySymbol, canDelete, onD
                   </td>
                   {canDelete ? (
                     <td>
-                      <button className="delete" type="button" onClick={() => onDelete(e.id)}>
-                        Delete
+                      <button
+                        className="delete"
+                        type="button"
+                        disabled={deletingId === e.id}
+                        aria-busy={deletingId === e.id}
+                        onClick={() => onDelete(e.id)}
+                      >
+                        {deletingId === e.id ? (
+                          <>
+                            <InlineSpinner /> Deleting…
+                          </>
+                        ) : (
+                          "Delete"
+                        )}
                       </button>
                     </td>
                   ) : null}

@@ -1,5 +1,8 @@
 "use client";
 
+import { useState } from "react";
+import InlineSpinner from "@/components/InlineSpinner";
+
 type SpentRow = { name: string; total: number };
 
 type Props = {
@@ -9,9 +12,9 @@ type Props = {
   /** Sum of net_profit for all approved (confirmed) order ledger rows. */
   approvedOrdersNetProfit: number | null;
   spentBy: SpentRow[];
-  onExportCsv: () => void;
-  onExportJson: () => void;
-  onImport: (file?: File) => void;
+  onExportCsv: () => void | Promise<void>;
+  onExportJson: () => void | Promise<void>;
+  onImport: (file?: File) => void | Promise<void>;
 };
 
 export default function Summary({
@@ -23,6 +26,8 @@ export default function Summary({
   onExportJson,
   onImport,
 }: Props) {
+  const [importBusy, setImportBusy] = useState(false);
+  const [exportBusy, setExportBusy] = useState<"csv" | "json" | null>(null);
   const remainingInvestment =
     approvedOrdersNetProfit !== null && totalExpensesAll !== null
       ? approvedOrdersNetProfit - totalExpensesAll
@@ -99,18 +104,61 @@ export default function Summary({
       <div className="hr" />
       <h2 style={{ marginTop: 0 }}>Import / Export</h2>
       <div className="btnbar">
-        <button type="button" onClick={onExportCsv}>
-          Export CSV
+        <button
+          type="button"
+          disabled={exportBusy !== null || importBusy}
+          aria-busy={exportBusy === "csv"}
+          onClick={() => {
+            setExportBusy("csv");
+            void Promise.resolve(onExportCsv()).finally(() => setExportBusy(null));
+          }}
+        >
+          {exportBusy === "csv" ? (
+            <>
+              <InlineSpinner /> Exporting…
+            </>
+          ) : (
+            "Export CSV"
+          )}
         </button>
-        <button type="button" onClick={onExportJson}>
-          Export JSON
+        <button
+          type="button"
+          disabled={exportBusy !== null || importBusy}
+          aria-busy={exportBusy === "json"}
+          onClick={() => {
+            setExportBusy("json");
+            void Promise.resolve(onExportJson()).finally(() => setExportBusy(null));
+          }}
+        >
+          {exportBusy === "json" ? (
+            <>
+              <InlineSpinner /> Exporting…
+            </>
+          ) : (
+            "Export JSON"
+          )}
         </button>
         <div className="import-inline" style={{ margin: 0 }}>
-          <button type="button">Import JSON/CSV</button>
+          <button type="button" disabled={importBusy || exportBusy !== null} aria-busy={importBusy}>
+            {importBusy ? (
+              <>
+                <InlineSpinner /> Importing…
+              </>
+            ) : (
+              "Import JSON/CSV"
+            )}
+          </button>
           <input
             type="file"
             accept=".json,.csv,application/json,text/csv"
-            onChange={(e) => onImport(e.target.files?.[0])}
+            disabled={importBusy || exportBusy !== null}
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              e.target.value = "";
+              if (!f) return;
+              setImportBusy(true);
+              void Promise.resolve(onImport(f)).finally(() => setImportBusy(false));
+            }}
           />
         </div>
       </div>

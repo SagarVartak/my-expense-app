@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { insertAuditLog } from "@/lib/auditLog";
 import { getSessionUser } from "@/lib/auth";
+import { appBaseUrl } from "@/lib/email";
+import { notifyAdminsPendingApproval } from "@/lib/notifyAdmins";
 import type { DeletionResourceType } from "@/lib/types";
 import { getServerSupabase } from "@/lib/serverSupabase";
 
@@ -133,6 +135,15 @@ export async function POST(req: Request) {
       "SUBMIT_DELETION_REQUEST",
       `Deletion requested — ${label} (${resource_type} ${resource_id.slice(0, 8)}…)`,
     );
+
+    if (user.role !== "admin") {
+      const open = `${appBaseUrl()}/?nav=deletionApprovals`;
+      void notifyAdminsPendingApproval({
+        subject: `Deletion approval requested: ${label}`,
+        htmlBody: `<p><strong>${user.username}</strong> requested deletion: ${label} (${resource_type}).</p><p><a href="${open}">Open Deletion approvals</a></p>`,
+        openPath: "/?nav=deletionApprovals",
+      }).catch(() => {});
+    }
 
     return NextResponse.json({ request: created });
   } catch (e) {

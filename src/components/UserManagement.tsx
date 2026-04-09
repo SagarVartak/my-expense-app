@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "react-toastify";
+import InlineSpinner from "@/components/InlineSpinner";
 import type { AppUser, PendingInvite, Role } from "@/lib/types";
 
 type Props = {
@@ -17,6 +18,9 @@ export default function UserManagement({ users, onCreate, onToggleActive }: Prop
 
   const [inviteEmail, setInviteEmail] = useState("");
   const [invites, setInvites] = useState<PendingInvite[]>([]);
+  const [createBusy, setCreateBusy] = useState(false);
+  const [toggleBusyId, setToggleBusyId] = useState<string | null>(null);
+  const [inviteBusy, setInviteBusy] = useState(false);
 
   const loadInvites = useCallback(async () => {
     const res = await fetch("/api/invites", { cache: "no-store" });
@@ -40,11 +44,16 @@ export default function UserManagement({ users, onCreate, onToggleActive }: Prop
       toast.error("Enter a valid Google email (must match their Google account).");
       return;
     }
-    const ok = await onCreate({ username: u, role, email });
-    if (ok) {
-      setUsername("");
-      setGoogleEmail("");
-      setRole("member");
+    setCreateBusy(true);
+    try {
+      const ok = await onCreate({ username: u, role, email });
+      if (ok) {
+        setUsername("");
+        setGoogleEmail("");
+        setRole("member");
+      }
+    } finally {
+      setCreateBusy(false);
     }
   };
 
@@ -54,19 +63,24 @@ export default function UserManagement({ users, onCreate, onToggleActive }: Prop
       toast.error("Enter a valid email address.");
       return;
     }
-    const res = await fetch("/api/invites", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email }),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      toast.error(typeof data.error === "string" ? data.error : "Invite failed.");
-      return;
+    setInviteBusy(true);
+    try {
+      const res = await fetch("/api/invites", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(typeof data.error === "string" ? data.error : "Invite failed.");
+        return;
+      }
+      setInviteEmail("");
+      toast.success("Invite sent. They verify email, then sign in with Google.");
+      await loadInvites();
+    } finally {
+      setInviteBusy(false);
     }
-    setInviteEmail("");
-    toast.success("Invite sent. They verify email, then sign in with Google.");
-    await loadInvites();
   };
 
   return (
@@ -82,8 +96,14 @@ export default function UserManagement({ users, onCreate, onToggleActive }: Prop
           <label htmlFor="inviteEmail">Email</label>
           <input id="inviteEmail" type="email" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} />
         </div>
-        <button type="button" onClick={sendInvite}>
-          Send invite
+        <button type="button" onClick={() => void sendInvite()} disabled={inviteBusy} aria-busy={inviteBusy}>
+          {inviteBusy ? (
+            <>
+              <InlineSpinner /> Sending…
+            </>
+          ) : (
+            "Send invite"
+          )}
         </button>
       </div>
 
@@ -140,8 +160,14 @@ export default function UserManagement({ users, onCreate, onToggleActive }: Prop
         </div>
       </div>
       <div className="btnbar">
-        <button type="button" onClick={submit}>
-          Create User
+        <button type="button" onClick={() => void submit()} disabled={createBusy} aria-busy={createBusy}>
+          {createBusy ? (
+            <>
+              <InlineSpinner /> Creating…
+            </>
+          ) : (
+            "Create User"
+          )}
         </button>
       </div>
 
@@ -166,8 +192,24 @@ export default function UserManagement({ users, onCreate, onToggleActive }: Prop
                 <td className="muted">{u.auth_user_id ? "linked" : u.email ? "pending" : "—"}</td>
                 <td>{u.active ? "active" : "disabled"}</td>
                 <td>
-                  <button type="button" onClick={() => void onToggleActive(u.id, !u.active)}>
-                    {u.active ? "Disable" : "Enable"}
+                  <button
+                    type="button"
+                    disabled={toggleBusyId === u.id}
+                    aria-busy={toggleBusyId === u.id}
+                    onClick={() => {
+                      setToggleBusyId(u.id);
+                      void onToggleActive(u.id, !u.active).finally(() => setToggleBusyId(null));
+                    }}
+                  >
+                    {toggleBusyId === u.id ? (
+                      <>
+                        <InlineSpinner /> …
+                      </>
+                    ) : u.active ? (
+                      "Disable"
+                    ) : (
+                      "Enable"
+                    )}
                   </button>
                 </td>
               </tr>

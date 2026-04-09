@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import BrandMark from "@/components/BrandMark";
+import { APP_NAME } from "@/lib/appMeta";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { isSupabaseAuthEnvConfigured } from "@/lib/supabase/publicEnv";
 import { toast } from "react-toastify";
@@ -41,7 +42,7 @@ export default function Login() {
       <div className="auth-card">
         <div className="auth-brand">
           <BrandMark size={48} className="app-brand-mark" />
-          <h2 className="auth-title">Expense tracker</h2>
+          <h2 className="auth-title">{APP_NAME}</h2>
         </div>
 
         <p className="auth-sub">Sign in with the Google account that matches your email in this app.</p>

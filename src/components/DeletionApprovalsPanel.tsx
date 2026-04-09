@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "react-toastify";
+import InlineSpinner from "@/components/InlineSpinner";
 import { clientFetch } from "@/lib/clientFetch";
 import { fmtCurrency } from "@/lib/currencyFormat";
 import type { DeletionRequest, DeletionResourceType } from "@/lib/types";
@@ -146,7 +147,13 @@ export default function DeletionApprovalsPanel({ currencySymbol, refreshSignal, 
                   <td>
                     <div className="design-table-actions">
                       <button type="button" disabled={busy === r.id} onClick={() => void approve(r)}>
-                        {busy === r.id ? "…" : "Approve"}
+                        {busy === r.id ? (
+                          <>
+                            <InlineSpinner /> …
+                          </>
+                        ) : (
+                          "Approve"
+                        )}
                       </button>
                       <button className="delete" type="button" disabled={busy === r.id} onClick={() => void reject(r)}>
                         Reject

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "react-toastify";
+import InlineSpinner from "@/components/InlineSpinner";
 import { fmtOrderMoney } from "@/lib/orderLedgerDisplay";
 import type { CostDesign, OrderLedgerEntry } from "@/lib/types";
 
@@ -329,8 +330,14 @@ export default function EditOrderModal({ open, order, currencySymbol, onClose, o
         </div>
 
         <div className="btnbar" style={{ marginTop: 16 }}>
-          <button type="button" onClick={() => void handleSubmit()} disabled={saving}>
-            {saving ? "Submitting…" : "Submit for approval"}
+          <button type="button" onClick={() => void handleSubmit()} disabled={saving} aria-busy={saving}>
+            {saving ? (
+              <>
+                <InlineSpinner /> Submitting…
+              </>
+            ) : (
+              "Submit for approval"
+            )}
           </button>
           <button type="button" onClick={onClose} disabled={saving}>
             Cancel

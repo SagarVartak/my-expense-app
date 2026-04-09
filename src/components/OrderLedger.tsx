@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "react-toastify";
+import InlineSpinner from "@/components/InlineSpinner";
 import { fmtOrderMoney } from "@/lib/orderLedgerDisplay";
 import type { CostDesign } from "@/lib/types";
 
@@ -334,8 +335,14 @@ export default function OrderLedger({ currencySymbol, onOrderMutated }: Props) {
       </div>
 
       <div className="btnbar" style={{ marginTop: 14 }}>
-        <button type="button" onClick={handleAddOrder} disabled={saving}>
-          {saving ? "Saving…" : "Add order"}
+        <button type="button" onClick={() => void handleAddOrder()} disabled={saving} aria-busy={saving}>
+          {saving ? (
+            <>
+              <InlineSpinner /> Saving…
+            </>
+          ) : (
+            "Add order"
+          )}
         </button>
         <button type="button" onClick={resetForm} disabled={saving}>
           Clear form

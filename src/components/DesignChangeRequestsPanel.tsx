@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "react-toastify";
+import InlineSpinner from "@/components/InlineSpinner";
 import { clientFetch } from "@/lib/clientFetch";
 import { fmtCurrency } from "@/lib/currencyFormat";
 import type { CostDesignChangeRequest } from "@/lib/types";
@@ -220,7 +221,13 @@ export default function DesignChangeRequestsPanel({ currencySymbol, refreshSigna
                         {r.status === "pending" ? (
                           <>
                             <button type="button" disabled={busyId === r.id} onClick={() => void approve(r)}>
-                              {busyId === r.id ? "…" : "Approve"}
+                              {busyId === r.id ? (
+                                <>
+                                  <InlineSpinner /> …
+                                </>
+                              ) : (
+                                "Approve"
+                              )}
                             </button>
                             <button
                               className="delete"
@@ -253,7 +260,7 @@ export default function DesignChangeRequestsPanel({ currencySymbol, refreshSigna
               <>
                 <h3 style={{ margin: "0 0 10px", fontSize: 15 }}>Field-by-field diff</h3>
                 <div className="design-table-wrap">
-                  <table className="design-table">
+                  <table className="design-table design-table--approval design-table--diff">
                     <thead>
                       <tr>
                         <th>Field</th>

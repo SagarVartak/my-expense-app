@@ -4,6 +4,7 @@ import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { toast } from "react-toastify";
 import BrandMark from "@/components/BrandMark";
+import { APP_NAME } from "@/lib/appMeta";
 
 function AcceptInviteForm() {
   const searchParams = useSearchParams();
@@ -82,7 +83,7 @@ function AcceptInviteForm() {
       <div className="auth-card">
         <div className="auth-brand">
           <BrandMark size={48} className="app-brand-mark" />
-          <h2 className="auth-title">Expense tracker</h2>
+          <h2 className="auth-title">{APP_NAME}</h2>
           <p className="auth-lead">Accept invite</p>
         </div>
         <p className="auth-sub">Verify your email, then sign in with Google on the main app.</p>
