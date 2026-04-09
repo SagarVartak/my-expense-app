@@ -14,7 +14,6 @@ function AcceptInviteForm() {
   const [email, setEmail] = useState("");
   const [verifyError, setVerifyError] = useState("");
 
-  const [password, setPassword] = useState("");
   const [submitError, setSubmitError] = useState("");
   const [done, setDone] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -52,19 +51,13 @@ function AcceptInviteForm() {
   }, [token]);
 
   const submit = async () => {
-    if (password.length < 6) {
-      const msg = "Password must be at least 6 characters.";
-      setSubmitError(msg);
-      toast.error(msg);
-      return;
-    }
     setLoading(true);
     setSubmitError("");
     try {
       const res = await fetch("/api/invites/accept", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, password }),
+        body: JSON.stringify({ token }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -73,7 +66,7 @@ function AcceptInviteForm() {
         toast.error(msg);
         return;
       }
-      toast.success("Account activated. You can log in.");
+      toast.success("Account ready. Sign in with Google using this email.");
       setDone(true);
     } catch {
       const msg = "Request failed.";
@@ -92,27 +85,22 @@ function AcceptInviteForm() {
           <h2 className="auth-title">Expense tracker</h2>
           <p className="auth-lead">Accept invite</p>
         </div>
-        <p className="auth-sub">Verify your email and choose a password to activate your account.</p>
+        <p className="auth-sub">Verify your email, then sign in with Google on the main app.</p>
 
         {checking ? (
           <p className="muted">Checking invite…</p>
         ) : verifyError ? (
           <div className="auth-error">{verifyError}</div>
         ) : done ? (
-          <p className="muted">Account ready. You can close this tab and log in with your email and password.</p>
+          <p className="muted">
+            You can close this tab and open the app. Use <strong style={{ color: "var(--text)" }}>Continue with Google</strong> with{" "}
+            <strong style={{ color: "var(--text)" }}>{email}</strong>.
+          </p>
         ) : valid ? (
           <>
             <div className="muted" style={{ marginBottom: 12 }}>
               Email: <strong style={{ color: "var(--text)" }}>{email}</strong>
             </div>
-            <label htmlFor="invitePass">Password</label>
-            <input
-              id="invitePass"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && submit()}
-            />
             <div className="btnbar">
               <button type="button" onClick={submit} disabled={loading}>
                 {loading ? "Saving…" : "Activate account"}

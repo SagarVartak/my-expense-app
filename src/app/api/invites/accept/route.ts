@@ -9,13 +9,12 @@ function usernameFromEmail(email: string): string {
   return local.slice(0, 28) || "user";
 }
 
+/** Creates a member row; sign-in is via Google only (password hash is random / unusable). */
 export async function POST(req: Request) {
   try {
     const body = await req.json();
     const token = String(body.token || "").trim();
-    const password = String(body.password || "");
     if (!token) return NextResponse.json({ error: "Token required" }, { status: 400 });
-    if (password.length < 6) return NextResponse.json({ error: "Password must be at least 6 characters" }, { status: 400 });
 
     const tokenHash = hashInviteToken(token);
     const supabase = getServerSupabase();
@@ -49,7 +48,7 @@ export async function POST(req: Request) {
       username = `${base.slice(0, 20)}_${randomBytes(3).toString("hex")}`;
     }
 
-    const password_hash = await bcrypt.hash(password, 10);
+    const password_hash = await bcrypt.hash(randomBytes(48).toString("hex"), 10);
     const now = new Date().toISOString();
 
     const { data: created, error: createErr } = await supabase

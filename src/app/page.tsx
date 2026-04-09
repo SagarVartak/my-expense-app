@@ -180,16 +180,34 @@ export default function Home() {
     setMemberNames((data.names || []) as string[]);
   }, []);
 
+  const [approvedOrdersNetProfit, setApprovedOrdersNetProfit] = useState<number | null>(null);
+  const [totalExpensesAll, setTotalExpensesAll] = useState<number | null>(null);
+
+  const refreshSummaryMetrics = useCallback(async () => {
+    const res = await clientFetch("/api/summary-metrics", { cache: "no-store" });
+    if (!res.ok) {
+      setApprovedOrdersNetProfit(null);
+      setTotalExpensesAll(null);
+      return;
+    }
+    const data = (await res.json()) as { totalApprovedNetProfit?: number; totalExpenses?: number };
+    const v = data.totalApprovedNetProfit;
+    setApprovedOrdersNetProfit(typeof v === "number" && Number.isFinite(v) ? v : 0);
+    const te = data.totalExpenses;
+    setTotalExpensesAll(typeof te === "number" && Number.isFinite(te) ? te : 0);
+  }, []);
+
   useEffect(() => {
     if (!currentUser) return;
     const run = async () => {
       await refreshExpenses();
+      await refreshSummaryMetrics();
       await refreshLogs();
       await refreshUsers();
       await refreshMemberNames();
     };
     void run();
-  }, [currentUser, refreshExpenses, refreshLogs, refreshUsers, refreshMemberNames]);
+  }, [currentUser, refreshExpenses, refreshSummaryMetrics, refreshLogs, refreshUsers, refreshMemberNames]);
 
   useEffect(() => {
     if (!currentUser) return;
@@ -203,6 +221,11 @@ export default function Home() {
   const [orderLedgerRefresh, setOrderLedgerRefresh] = useState(0);
   const [approvalRefresh, setApprovalRefresh] = useState(0);
 
+  useEffect(() => {
+    if (!currentUser) return;
+    void refreshSummaryMetrics();
+  }, [currentUser, orderLedgerRefresh, approvalRefresh, refreshSummaryMetrics]);
+
   const notifyCostDesignAudit = useCallback(() => {
     if (currentUser?.role === "admin") void refreshLogs();
   }, [currentUser?.role, refreshLogs]);
@@ -212,7 +235,7 @@ export default function Home() {
     refreshLock.current = true;
     setRefreshing(true);
     try {
-      const tasks: Promise<unknown>[] = [refreshExpenses(), refreshMemberNames()];
+      const tasks: Promise<unknown>[] = [refreshExpenses(), refreshMemberNames(), refreshSummaryMetrics()];
       if (currentUser.role === "admin") {
         tasks.push(refreshLogs(), refreshUsers());
       }
@@ -228,7 +251,7 @@ export default function Home() {
       refreshLock.current = false;
       setRefreshing(false);
     }
-  }, [currentUser, refreshExpenses, refreshLogs, refreshMemberNames, refreshUsers]);
+  }, [currentUser, refreshExpenses, refreshLogs, refreshMemberNames, refreshSummaryMetrics, refreshUsers]);
 
   const participants = useMemo(() => {
     const set = new Set(expenses.map((e) => e.paid_by).filter(Boolean));
@@ -260,6 +283,8 @@ export default function Home() {
     setCurrentUser(null);
     setExpenses([]);
     setAuditLogs([]);
+    setApprovedOrdersNetProfit(null);
+    setTotalExpensesAll(null);
   };
 
   const handleAddExpense = async () => {
@@ -425,7 +450,7 @@ export default function Home() {
     }
   };
 
-  const createUser = async (payload: { username: string; password: string; role: "admin" | "member" }) => {
+  const createUser = async (payload: { username: string; role: "admin" | "member"; email: string }) => {
     const res = await clientFetch("/api/users", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -474,7 +499,7 @@ export default function Home() {
   };
 
   if (!loaded) return null;
-  if (!currentUser) return <Login onSuccess={setCurrentUser} />;
+  if (!currentUser) return <Login />;
 
   const navBtnClass = (id: NavId) =>
     `nav-btn${activeNav === id ? " nav-btn-active" : ""}`;
@@ -728,7 +753,8 @@ export default function Home() {
           {activeNav === "summary" ? (
             <Summary
               currencySymbol={currencySymbol}
-              totalSpent={totalSpent}
+              totalExpensesAll={totalExpensesAll}
+              approvedOrdersNetProfit={approvedOrdersNetProfit}
               spentBy={spentBy}
               onExportCsv={handleExportCSV}
               onExportJson={handleExportJSON}

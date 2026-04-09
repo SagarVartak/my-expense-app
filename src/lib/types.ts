@@ -3,6 +3,8 @@ export type Role = "admin" | "member";
 export type SessionUser = {
   username: string;
   role: Role;
+  /** Sessions use Supabase Google OAuth only. */
+  authMethod?: "google";
 };
 
 export type AppUser = {
@@ -13,6 +15,7 @@ export type AppUser = {
   created_at?: string;
   email?: string | null;
   email_verified_at?: string | null;
+  auth_user_id?: string | null;
 };
 
 export type PendingInvite = {

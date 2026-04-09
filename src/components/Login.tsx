@@ -1,42 +1,36 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import BrandMark from "@/components/BrandMark";
-import { clientFetch } from "@/lib/clientFetch";
+import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
+import { isSupabaseAuthEnvConfigured } from "@/lib/supabase/publicEnv";
 import { toast } from "react-toastify";
-import type { SessionUser } from "@/lib/types";
-
-type Props = {
-  onSuccess: (user: SessionUser) => void;
-};
-
-export default function Login({ onSuccess }: Props) {
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
+export default function Login() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const submit = async () => {
+  const googleReady = useMemo(() => isSupabaseAuthEnvConfigured(), []);
+
+  const signInWithGoogle = async () => {
     setLoading(true);
     setError("");
     try {
-      const res = await clientFetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password }),
+      const supabase = createSupabaseBrowserClient();
+      const { error: oAuthError } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback?next=/`,
+        },
       });
-      const data = await res.json();
-      if (!res.ok) {
-        const msg = data.error || "Login failed.";
+      if (oAuthError) {
+        const msg = oAuthError.message || "Google sign-in failed.";
         setError(msg);
         toast.error(msg);
-        return;
       }
-      toast.success("Signed in.");
-      onSuccess(data.user as SessionUser);
     } catch {
-      setError("Login failed.");
-      toast.error("Login failed.");
+      const msg = "Could not start Google sign-in. Check Supabase URL and anon key.";
+      setError(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -49,33 +43,23 @@ export default function Login({ onSuccess }: Props) {
           <BrandMark size={48} className="app-brand-mark" />
           <h2 className="auth-title">Expense tracker</h2>
         </div>
-        <p className="auth-sub">Sign in with your username or verified email.</p>
-        <label htmlFor="loginUsername">Username or verified email</label>
-        <input
-          id="loginUsername"
-          type="text"
-          autoComplete="username"
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-        />
-        <div style={{ marginTop: 10 }}>
-          <label htmlFor="loginPassword">Password</label>
-          <input
-            id="loginPassword"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && submit()}
-          />
-        </div>
-        <div className="btnbar">
-          <button type="button" onClick={submit} disabled={loading}>
-            {loading ? "Logging in..." : "Login"}
+
+        <p className="auth-sub">Sign in with the Google account that matches your email in this app.</p>
+
+        {googleReady ? (
+          <button type="button" className="auth-google-btn" onClick={() => void signInWithGoogle()} disabled={loading}>
+            {loading ? "Redirecting…" : "Continue with Google"}
           </button>
-        </div>
+        ) : (
+          <p className="muted" style={{ fontSize: 13, marginBottom: 12 }}>
+            Add <code style={{ fontSize: 12 }}>NEXT_PUBLIC_SUPABASE_URL</code> and an anon key:{" "}
+            <code style={{ fontSize: 12 }}>NEXT_PUBLIC_SUPABASE_ANON_KEY</code> or{" "}
+            <code style={{ fontSize: 12 }}>NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY</code> (same value from Supabase → API).
+            Restart <code style={{ fontSize: 12 }}>npm run dev</code> after editing <code style={{ fontSize: 12 }}>.env</code>.
+          </p>
+        )}
         <div className="auth-error">{error}</div>
       </div>
     </div>
   );
 }
-

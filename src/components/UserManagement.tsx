@@ -6,13 +6,13 @@ import type { AppUser, PendingInvite, Role } from "@/lib/types";
 
 type Props = {
   users: AppUser[];
-  onCreate: (payload: { username: string; password: string; role: Role }) => Promise<boolean>;
+  onCreate: (payload: { username: string; role: Role; email: string }) => Promise<boolean>;
   onToggleActive: (id: string, active: boolean) => Promise<boolean>;
 };
 
 export default function UserManagement({ users, onCreate, onToggleActive }: Props) {
   const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
+  const [googleEmail, setGoogleEmail] = useState("");
   const [role, setRole] = useState<Role>("member");
 
   const [inviteEmail, setInviteEmail] = useState("");
@@ -30,14 +30,20 @@ export default function UserManagement({ users, onCreate, onToggleActive }: Prop
   }, [loadInvites]);
 
   const submit = async () => {
-    if (!username.trim() || password.length < 6) {
-      toast.error("Username required. Password must be at least 6 characters.");
+    const u = username.trim().toLowerCase();
+    if (!u) {
+      toast.error("Username is required.");
       return;
     }
-    const ok = await onCreate({ username: username.trim().toLowerCase(), password, role });
+    const email = googleEmail.trim().toLowerCase();
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      toast.error("Enter a valid Google email (must match their Google account).");
+      return;
+    }
+    const ok = await onCreate({ username: u, role, email });
     if (ok) {
       setUsername("");
-      setPassword("");
+      setGoogleEmail("");
       setRole("member");
     }
   };
@@ -59,7 +65,7 @@ export default function UserManagement({ users, onCreate, onToggleActive }: Prop
       return;
     }
     setInviteEmail("");
-    toast.success("Invite sent. They should check email for the verification link.");
+    toast.success("Invite sent. They verify email, then sign in with Google.");
     await loadInvites();
   };
 
@@ -67,9 +73,9 @@ export default function UserManagement({ users, onCreate, onToggleActive }: Prop
     <div className="card">
       <h2>Invite by email</h2>
       <p className="muted" style={{ margin: "0 0 12px", fontSize: 13 }}>
-        Sends a link so the recipient can verify their email and choose a password. Configure{" "}
-        <code style={{ fontSize: 12 }}>RESEND_API_KEY</code> and <code style={{ fontSize: 12 }}>NEXT_PUBLIC_APP_URL</code>{" "}
-        for production email delivery; otherwise the link is logged on the server for manual sharing.
+        Sends a link to verify email. After accepting, they sign in with <strong style={{ color: "var(--text)" }}>Continue with Google</strong> using
+        that address. Configure <code style={{ fontSize: 12 }}>RESEND_API_KEY</code> and <code style={{ fontSize: 12 }}>NEXT_PUBLIC_APP_URL</code> for
+        production email; otherwise the link is logged on the server.
       </p>
       <div className="row" style={{ alignItems: "flex-end" }}>
         <div style={{ flex: 1 }}>
@@ -107,14 +113,23 @@ export default function UserManagement({ users, onCreate, onToggleActive }: Prop
       <div className="hr" style={{ margin: "18px 0" }} />
 
       <h2>Admin User Management</h2>
+      <p className="muted" style={{ margin: "0 0 12px", fontSize: 13 }}>
+        <strong style={{ color: "var(--text)" }}>Admins and members</strong> sign in with Google only — set an email that matches their Google account.
+      </p>
       <div className="row3">
         <div>
           <label htmlFor="newUserName">Username</label>
           <input id="newUserName" value={username} onChange={(e) => setUsername(e.target.value)} />
         </div>
         <div>
-          <label htmlFor="newUserPass">Password</label>
-          <input id="newUserPass" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+          <label htmlFor="googleEmail">Google email</label>
+          <input
+            id="googleEmail"
+            type="email"
+            placeholder="name@gmail.com"
+            value={googleEmail}
+            onChange={(e) => setGoogleEmail(e.target.value)}
+          />
         </div>
         <div>
           <label htmlFor="newUserRole">Role</label>
@@ -137,6 +152,7 @@ export default function UserManagement({ users, onCreate, onToggleActive }: Prop
               <th>Username</th>
               <th>Email</th>
               <th>Role</th>
+              <th>Google</th>
               <th>Status</th>
               <th>Action</th>
             </tr>
@@ -147,6 +163,7 @@ export default function UserManagement({ users, onCreate, onToggleActive }: Prop
                 <td>{u.username}</td>
                 <td className="muted">{u.email || "—"}</td>
                 <td>{u.role}</td>
+                <td className="muted">{u.auth_user_id ? "linked" : u.email ? "pending" : "—"}</td>
                 <td>{u.active ? "active" : "disabled"}</td>
                 <td>
                   <button type="button" onClick={() => void onToggleActive(u.id, !u.active)}>

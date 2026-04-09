@@ -87,6 +87,40 @@ export default function AccountSettingsModal({ open, user, onClose, onUserUpdate
   if (!open) return null;
   if (typeof document === "undefined") return null;
 
+  if (user.authMethod === "google") {
+    return createPortal(
+      <div
+        className="modal-overlay modal-overlay--portal"
+        role="presentation"
+        onClick={(e) => {
+          if (e.target === e.currentTarget) onClose();
+        }}
+      >
+        <div
+          className="modal-panel modal-panel--account card"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="account-settings-title"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <h2 id="account-settings-title" style={{ margin: "0 0 6px", fontSize: 16 }}>
+            Account settings
+          </h2>
+          <p className="muted" style={{ margin: "0 0 14px", fontSize: 13 }}>
+            You signed in with Google. Security and email are managed in your Google account; this app does not store a separate password for your
+            user.
+          </p>
+          <div className="btnbar" style={{ marginTop: 14 }}>
+            <button type="button" onClick={onClose}>
+              Close
+            </button>
+          </div>
+        </div>
+      </div>,
+      document.body,
+    );
+  }
+
   return createPortal(
     <div
       className="modal-overlay modal-overlay--portal"

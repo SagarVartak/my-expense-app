@@ -39,6 +39,13 @@ export async function PATCH(req: Request) {
 
   if (findErr || !row) return NextResponse.json({ error: "Account not found." }, { status: 404 });
 
+  if ((row as { auth_user_id?: string | null }).auth_user_id) {
+    return NextResponse.json(
+      { error: "This account uses Google sign-in. Use your Google account to manage security." },
+      { status: 403 },
+    );
+  }
+
   const pwOk = await bcrypt.compare(currentPassword, row.password_hash as string);
   if (!pwOk) return NextResponse.json({ error: "Current password is incorrect." }, { status: 401 });
 
