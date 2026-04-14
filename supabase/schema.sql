@@ -104,6 +104,8 @@ create table if not exists public.order_ledger (
   cost_design_id uuid references public.cost_designs (id) on delete set null,
   design_name text not null default '',
   customer_name text not null,
+  customer_phone text not null default '',
+  shipment_tracking text not null default '',
   shipping_address text not null default '',
   actual_weight_g numeric(14, 4) not null default 0,
   total_cost_price numeric(14, 2) not null default 0,

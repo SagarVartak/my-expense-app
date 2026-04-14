@@ -221,6 +221,7 @@ button.app-brand-link:hover {
   flex: 1;
   display: flex;
   min-height: 0;
+  min-width: 0;
   width: 100%;
   max-width: 1400px;
   margin: 0 auto;
@@ -485,6 +486,8 @@ a.nav-btn-link:hover {
   padding: 22px 22px 20px;
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
+  min-width: 0;
+  max-width: 100%;
 }
 .card h2 {
   margin: 0 0 14px;
@@ -561,19 +564,36 @@ a.nav-btn-link:hover {
   grid-template-columns: 1fr;
   max-width: 320px;
 }
-.design-table-wrap {
+/* Generic horizontal scroll for wide tables (expenses, audit, etc.) */
+.table-scroll-wrap {
+  width: 100%;
+  max-width: 100%;
   overflow-x: auto;
+  overflow-y: hidden;
+  border-radius: 12px;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x pan-y;
+  overscroll-behavior-x: contain;
+}
+
+.design-table-wrap {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
   border-radius: 12px;
   margin-top: 4px;
   -webkit-overflow-scrolling: touch;
+  touch-action: pan-x pan-y;
+  overscroll-behavior-x: contain;
 }
 table.design-table {
   font-size: 12px;
   min-width: 1400px;
 }
-/* Approval / summary tables: fit the viewport; scroll inside wrapper only when needed */
+/* Approval tables: allow horizontal scroll on narrow viewports */
 table.design-table.design-table--approval {
-  min-width: min(100%, 720px);
+  min-width: 720px;
   width: 100%;
 }
 table.design-table.design-table--approval thead th,
@@ -652,14 +672,19 @@ table.design-table tbody td:first-child {
   font-weight: 700;
 }
 .order-table-wrap {
+  width: 100%;
+  max-width: 100%;
   overflow-x: auto;
+  overflow-y: hidden;
   border-radius: 12px;
   margin-top: 4px;
   -webkit-overflow-scrolling: touch;
+  touch-action: pan-x pan-y;
+  overscroll-behavior-x: contain;
 }
 table.order-table {
   font-size: 12px;
-  min-width: 1800px;
+  min-width: 2000px;
 }
 table.order-table thead th {
   white-space: normal;

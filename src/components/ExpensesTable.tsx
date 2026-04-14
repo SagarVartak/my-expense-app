@@ -18,7 +18,7 @@ export default function ExpensesTable({ expenses, currencySymbol, canDelete, onD
   return (
     <div className="card">
       <h2>Expense Entries</h2>
-      <div style={{ overflow: "auto", borderRadius: 12 }}>
+      <div className="table-scroll-wrap">
         <table>
           <thead>
             <tr>

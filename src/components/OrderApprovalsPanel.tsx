@@ -206,6 +206,8 @@ export default function OrderApprovalsPanel({ currencySymbol, refreshSignal, onM
             <tr>
               <th>Order ID</th>
               <th>Customer</th>
+              <th>Phone</th>
+              <th>Tracking</th>
               <th className="amt">Net</th>
               <th>By</th>
               <th className="design-th-action">Actions</th>
@@ -223,6 +225,10 @@ export default function OrderApprovalsPanel({ currencySymbol, refreshSignal, onM
                 <tr key={o.id}>
                   <td style={{ fontSize: 12 }}>{o.order_uid}</td>
                   <td>{o.customer_name}</td>
+                  <td style={{ fontSize: 12 }}>{o.customer_phone?.trim() || "—"}</td>
+                  <td className="order-td-wrap" style={{ fontSize: 12, maxWidth: 120 }}>
+                    {o.shipment_tracking?.trim() || "—"}
+                  </td>
                   <td className="amt">{fmtCurrency(currencySymbol, Number(o.net_profit))}</td>
                   <td className="muted" style={{ fontSize: 12 }}>
                     {o.created_by}

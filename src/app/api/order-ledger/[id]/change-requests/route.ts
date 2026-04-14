@@ -79,6 +79,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       cost_design_id: design.id as string,
       design_name: String(design.keychain_design ?? ""),
       customer_name,
+      customer_phone: String(body.customer_phone ?? "").trim(),
+      shipment_tracking: String(body.shipment_tracking ?? "").trim(),
       shipping_address: String(body.shipping_address ?? "").trim(),
       actual_weight_g: num(body.actual_weight_g),
       total_cost_price,
@@ -130,7 +132,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       void notifyAdminsPendingApproval({
         subject: `Order edit pending: ${proposed_snapshot.order_uid}`,
         htmlBody: `<p><strong>${user.username}</strong> requested changes to order <strong>${proposed_snapshot.order_uid}</strong> (${proposed_snapshot.customer_name}).</p><p>Total cost: ₹${money(previous_snapshot.total_cost_price)} → ₹${money(proposed_snapshot.total_cost_price)}.</p><p><a href="${open}">Open Order approvals</a></p>`,
-        openPath: "/?nav=orderApprovals",
+        kind: "order_edit",
+        nav: "orderApprovals",
       }).catch(() => {});
     }
 

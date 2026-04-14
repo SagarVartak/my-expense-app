@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { insertAuditLog } from "@/lib/auditLog";
 import { getSessionUser } from "@/lib/auth";
 import { appBaseUrl } from "@/lib/email";
-import { notifyDiscordOrderLedgerAdded } from "@/lib/discordWebhook";
 import { notifyAdminsPendingApproval } from "@/lib/notifyAdmins";
 import { generateOrderUid } from "@/lib/entryUid";
 import { insertOrderLedgerWithSchemaFallback } from "@/lib/orderLedgerSchemaFallback";
@@ -88,6 +87,8 @@ export async function POST(req: Request) {
       cost_design_id: design.id,
       design_name: String(design.keychain_design ?? ""),
       customer_name,
+      customer_phone: String(body.customer_phone ?? "").trim(),
+      shipment_tracking: String(body.shipment_tracking ?? "").trim(),
       shipping_address: String(body.shipping_address ?? "").trim(),
       actual_weight_g: num(body.actual_weight_g),
       total_cost_price,
@@ -135,7 +136,8 @@ export async function POST(req: Request) {
       void notifyAdminsPendingApproval({
         subject: `New order pending approval: ${uid}`,
         htmlBody: `<p><strong>${user.username}</strong> submitted a new order <strong>${uid}</strong> (${customer_name}).</p><p><a href="${open}">Open Order approvals</a></p>`,
-        openPath: "/?nav=orderApprovals",
+        kind: "order_new",
+        nav: "orderApprovals",
       }).catch(() => {});
     }
 

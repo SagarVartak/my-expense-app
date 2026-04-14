@@ -141,7 +141,8 @@ export async function POST(req: Request) {
       void notifyAdminsPendingApproval({
         subject: `Deletion approval requested: ${label}`,
         htmlBody: `<p><strong>${user.username}</strong> requested deletion: ${label} (${resource_type}).</p><p><a href="${open}">Open Deletion approvals</a></p>`,
-        openPath: "/?nav=deletionApprovals",
+        kind: "deletion",
+        nav: "deletionApprovals",
       }).catch(() => {});
     }
 

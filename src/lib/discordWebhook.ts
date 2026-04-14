@@ -141,6 +141,8 @@ type OrderLedgerRow = {
   order_date: string;
   design_name: string;
   customer_name: string;
+  customer_phone?: string | null;
+  shipment_tracking?: string | null;
   shipping_address?: string | null;
   actual_weight_g?: number | null;
   total_cost_price: number;
@@ -171,6 +173,8 @@ export function notifyDiscordOrderLedgerAdded(order: OrderLedgerRow, addedBy: st
   const currency = process.env.DISCORD_CURRENCY_SYMBOL?.trim() || "₹";
   const fmt = (n: number) => `${currency}${Number(n).toFixed(2)}`;
   const ship = (order.shipping_address ?? "").trim() || "—";
+  const phone = (order.customer_phone ?? "").trim() || "—";
+  const tracking = (order.shipment_tracking ?? "").trim() || "—";
   const src = (order.source ?? "").trim() || "—";
 
   const w = order.actual_weight_g;
@@ -185,6 +189,8 @@ export function notifyDiscordOrderLedgerAdded(order: OrderLedgerRow, addedBy: st
       { name: "Date", value: truncate(order.order_date, 1024), inline: true },
       { name: "Design", value: truncate(order.design_name || "—", 1024), inline: false },
       { name: "Customer", value: truncate(order.customer_name, 1024), inline: true },
+      { name: "Phone", value: truncate(phone, 1024), inline: true },
+      { name: "Tracking #", value: truncate(tracking, 1024), inline: true },
       { name: "Actual weight (g)", value: weightLine, inline: true },
       { name: "Selling price", value: truncate(fmt(Number(order.selling_price)), 1024), inline: true },
       {

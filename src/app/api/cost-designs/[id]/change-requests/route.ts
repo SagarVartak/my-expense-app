@@ -67,7 +67,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       void notifyAdminsPendingApproval({
         subject: `Design change pending: ${previous_snapshot.keychain_design}`,
         htmlBody: `<p><strong>${user.username}</strong> submitted changes for design <strong>${previous_snapshot.keychain_design}</strong>.</p><p>Total cost: ₹${money(previous_snapshot.total_cost_price)} → ₹${money(proposed_snapshot.total_cost_price)}.</p><p><a href="${open}">Open Design change approvals</a></p>`,
-        openPath: "/?nav=designChangeApprovals",
+        kind: "design_change",
+        nav: "designChangeApprovals",
       }).catch(() => {});
     }
 

@@ -121,7 +121,7 @@ export default function OrdersTable({
     }
   };
 
-  const colSpan = 18;
+  const colSpan = 20;
 
   return (
     <section className="card">
@@ -150,6 +150,8 @@ export default function OrdersTable({
               <th>Date</th>
               <th>Design</th>
               <th>Customer name</th>
+              <th>Phone</th>
+              <th>Tracking #</th>
               <th>Shipping address</th>
               <th className="amt">Actual weight (g)</th>
               <th className="amt">Total cost price</th>
@@ -207,6 +209,12 @@ export default function OrdersTable({
                       <span className="design-name-cell">{o.design_name || "—"}</span>
                     </td>
                     <td>{o.customer_name}</td>
+                    <td className="order-td-wrap" style={{ maxWidth: 120, fontSize: 12 }}>
+                      {o.customer_phone?.trim() || "—"}
+                    </td>
+                    <td className="order-td-wrap" style={{ maxWidth: 140, fontSize: 12 }}>
+                      {o.shipment_tracking?.trim() || "—"}
+                    </td>
                     <td className="order-td-wrap" style={{ maxWidth: 180, fontSize: 12 }}>
                       {o.shipping_address || "—"}
                     </td>

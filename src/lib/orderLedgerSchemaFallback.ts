@@ -7,8 +7,19 @@ export function extractMissingColumnNameFromPostgrestError(err: unknown): string
   return m?.[1] ?? null;
 }
 
-const INSERT_OPTIONAL_COLUMNS = new Set(["approval_status", "exclude_shipping_from_cost", "units"]);
-const UPDATE_OPTIONAL_COLUMNS = new Set(["exclude_shipping_from_cost", "units"]);
+const INSERT_OPTIONAL_COLUMNS = new Set([
+  "approval_status",
+  "exclude_shipping_from_cost",
+  "units",
+  "customer_phone",
+  "shipment_tracking",
+]);
+const UPDATE_OPTIONAL_COLUMNS = new Set([
+  "exclude_shipping_from_cost",
+  "units",
+  "customer_phone",
+  "shipment_tracking",
+]);
 
 function isDuplicateKeyError(err: unknown): boolean {
   const code = String((err as { code?: string })?.code ?? "");

@@ -6,6 +6,7 @@ import InlineSpinner from "@/components/InlineSpinner";
 import Login from "@/components/Login";
 import Summary from "@/components/Summary";
 import UserProfileMenu from "@/components/UserProfileMenu";
+import AdminRealtimeListener, { isKnownApprovalNav } from "@/components/AdminRealtimeListener";
 import BrandMark from "@/components/BrandMark";
 import CostPriceCalculator from "@/components/CostPriceCalculator";
 import ExpensesTable from "@/components/ExpensesTable";
@@ -225,6 +226,20 @@ export default function Home() {
   const [costDesignRefresh, setCostDesignRefresh] = useState(0);
   const [orderLedgerRefresh, setOrderLedgerRefresh] = useState(0);
   const [approvalRefresh, setApprovalRefresh] = useState(0);
+
+  const handleAdminRealtimeAlert = useCallback(
+    (a: { title: string; body: string; nav?: string | null }) => {
+      setApprovalRefresh((r) => r + 1);
+      const navId = isKnownApprovalNav(a.nav) ? a.nav : null;
+      toast.info(`${a.title}${a.body ? ` — ${a.body}` : ""}`, {
+        autoClose: 9000,
+        onClick: () => {
+          if (navId) setActiveNav(navId);
+        },
+      });
+    },
+    [],
+  );
 
   useEffect(() => {
     if (!currentUser) return;
@@ -526,6 +541,9 @@ export default function Home() {
 
   return (
     <div className="app-shell">
+      {currentUser.role === "admin" ? (
+        <AdminRealtimeListener enabled onAlert={handleAdminRealtimeAlert} />
+      ) : null}
       <header className="app-top">
         <div className="app-brand">
           <BrandMark size={44} className="app-brand-mark" />

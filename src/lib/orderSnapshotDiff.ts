@@ -13,6 +13,8 @@ export const ORDER_SNAPSHOT_DIFF_FIELDS: {
   { key: "cost_design_id", label: "Saved design ID", kind: "text" },
   { key: "design_name", label: "Design", kind: "text" },
   { key: "customer_name", label: "Customer", kind: "text" },
+  { key: "customer_phone", label: "Customer phone", kind: "text" },
+  { key: "shipment_tracking", label: "Shipment tracking", kind: "text" },
   { key: "shipping_address", label: "Shipping address", kind: "text" },
   { key: "actual_weight_g", label: "Weight (g)", kind: "number" },
   { key: "units", label: "Units", kind: "number" },

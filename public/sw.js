@@ -3,7 +3,7 @@
  * Service worker — offline fallback + faster repeat visits for static assets.
  * Scope: /. Registered only in production (see ServiceWorkerRegister).
  */
-const VERSION = "expense-pwa-v2";
+const VERSION = "expense-pwa-v4";
 const STATIC_CACHE = `${VERSION}-static`;
 const PAGE_CACHE = `${VERSION}-pages`;
 

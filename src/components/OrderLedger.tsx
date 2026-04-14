@@ -29,6 +29,8 @@ export default function OrderLedger({ currencySymbol, onOrderMutated }: Props) {
   const [orderDate, setOrderDate] = useState(todayISO());
   const [costDesignId, setCostDesignId] = useState("");
   const [customerName, setCustomerName] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
+  const [shipmentTracking, setShipmentTracking] = useState("");
   const [shippingAddress, setShippingAddress] = useState("");
   const [actualWeightG, setActualWeightG] = useState("");
   const [units, setUnits] = useState("1");
@@ -85,6 +87,8 @@ export default function OrderLedger({ currencySymbol, onOrderMutated }: Props) {
     setOrderDate(todayISO());
     setCostDesignId("");
     setCustomerName("");
+    setCustomerPhone("");
+    setShipmentTracking("");
     setShippingAddress("");
     setActualWeightG("");
     setUnits("1");
@@ -116,6 +120,8 @@ export default function OrderLedger({ currencySymbol, onOrderMutated }: Props) {
           order_date: orderDate,
           cost_design_id: costDesignId,
           customer_name: customerName.trim(),
+          customer_phone: customerPhone.trim(),
+          shipment_tracking: shipmentTracking.trim(),
           shipping_address: shippingAddress.trim(),
           actual_weight_g: actualWeightG,
           units: Math.max(1, Math.floor(Number(units) || 1)),
@@ -195,6 +201,32 @@ export default function OrderLedger({ currencySymbol, onOrderMutated }: Props) {
             autoComplete="name"
           />
         </div>
+      </div>
+
+      <div className="row3" style={{ marginTop: 10 }}>
+        <div>
+          <label htmlFor="ol-phone">Customer phone</label>
+          <input
+            id="ol-phone"
+            type="tel"
+            inputMode="tel"
+            autoComplete="tel"
+            value={customerPhone}
+            onChange={(e) => setCustomerPhone(e.target.value)}
+            placeholder="Optional"
+          />
+        </div>
+        <div>
+          <label htmlFor="ol-tracking">Shipment tracking #</label>
+          <input
+            id="ol-tracking"
+            type="text"
+            value={shipmentTracking}
+            onChange={(e) => setShipmentTracking(e.target.value)}
+            placeholder="Carrier / tracking ID"
+          />
+        </div>
+        <div aria-hidden />
       </div>
 
       <div style={{ marginTop: 10 }}>

@@ -32,6 +32,8 @@ export default function EditOrderModal({ open, order, currencySymbol, onClose, o
   const [orderDate, setOrderDate] = useState("");
   const [costDesignId, setCostDesignId] = useState("");
   const [customerName, setCustomerName] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
+  const [shipmentTracking, setShipmentTracking] = useState("");
   const [shippingAddress, setShippingAddress] = useState("");
   const [actualWeightG, setActualWeightG] = useState("");
   const [units, setUnits] = useState("1");
@@ -66,6 +68,8 @@ export default function EditOrderModal({ open, order, currencySymbol, onClose, o
     setOrderDate(String(order.order_date ?? "").slice(0, 10));
     setCostDesignId(order.cost_design_id ?? "");
     setCustomerName(order.customer_name ?? "");
+    setCustomerPhone(order.customer_phone ?? "");
+    setShipmentTracking(order.shipment_tracking ?? "");
     setShippingAddress(order.shipping_address ?? "");
     setActualWeightG(String(order.actual_weight_g ?? ""));
     setUnits(String(order.units ?? 1));
@@ -114,6 +118,8 @@ export default function EditOrderModal({ open, order, currencySymbol, onClose, o
           order_date: orderDate,
           cost_design_id: costDesignId,
           customer_name: customerName.trim(),
+          customer_phone: customerPhone.trim(),
+          shipment_tracking: shipmentTracking.trim(),
           shipping_address: shippingAddress.trim(),
           actual_weight_g: actualWeightG,
           units: Math.max(1, Math.floor(Number(units) || 1)),
@@ -201,6 +207,31 @@ export default function EditOrderModal({ open, order, currencySymbol, onClose, o
             <label htmlFor="eom-customer">Customer name</label>
             <input id="eom-customer" value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
           </div>
+        </div>
+
+        <div className="row3" style={{ marginTop: 10 }}>
+          <div>
+            <label htmlFor="eom-phone">Customer phone</label>
+            <input
+              id="eom-phone"
+              type="tel"
+              inputMode="tel"
+              value={customerPhone}
+              onChange={(e) => setCustomerPhone(e.target.value)}
+              placeholder="Optional"
+            />
+          </div>
+          <div>
+            <label htmlFor="eom-tracking">Shipment tracking #</label>
+            <input
+              id="eom-tracking"
+              type="text"
+              value={shipmentTracking}
+              onChange={(e) => setShipmentTracking(e.target.value)}
+              placeholder="Carrier / tracking ID"
+            />
+          </div>
+          <div aria-hidden />
         </div>
 
         <div style={{ marginTop: 10 }}>

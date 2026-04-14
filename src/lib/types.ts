@@ -120,6 +120,8 @@ export type OrderLedgerSnapshotJson = {
   cost_design_id: string | null;
   design_name: string;
   customer_name: string;
+  customer_phone: string;
+  shipment_tracking: string;
   shipping_address: string;
   actual_weight_g: number;
   total_cost_price: number;
@@ -145,6 +147,8 @@ export type OrderLedgerEntry = {
   cost_design_id: string | null;
   design_name: string;
   customer_name: string;
+  customer_phone?: string;
+  shipment_tracking?: string;
   shipping_address: string;
   actual_weight_g: number;
   total_cost_price: number;

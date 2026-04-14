@@ -10,7 +10,7 @@ export default function AuditTable({ logs }: Props) {
   return (
     <div className="card">
       <h2>Admin Audit Logs</h2>
-      <div style={{ overflow: "auto", borderRadius: 12 }}>
+      <div className="table-scroll-wrap">
         <table>
           <thead>
             <tr>
