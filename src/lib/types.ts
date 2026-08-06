@@ -5,8 +5,6 @@ export type SessionUser = {
   role: Role;
   /** Sessions use Supabase Google OAuth only. */
   authMethod?: "google";
-  /** Google profile picture URL */
-  avatar_url?: string;
 };
 
 export type AppUser = {

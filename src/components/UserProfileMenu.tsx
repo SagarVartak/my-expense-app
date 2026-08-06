@@ -57,11 +57,7 @@ export default function UserProfileMenu({ user, currencySymbol, onLogout, onUser
         onClick={() => setOpen((v) => !v)}
       >
         <span className="profile-avatar" aria-hidden>
-          {user.avatar_url ? (
-            <img src={user.avatar_url} alt="" style={{ width: "100%", height: "100%", borderRadius: "50%", objectFit: "cover" }} />
-          ) : (
-            initials(user.username)
-          )}
+          {initials(user.username)}
         </span>
         <span className="profile-trigger-text">
           <span className="profile-name">{user.username}</span>
@@ -73,18 +69,11 @@ export default function UserProfileMenu({ user, currencySymbol, onLogout, onUser
       </button>
       {open ? (
         <div className="profile-dropdown" role="menu">
-          <div className="profile-dropdown-row" style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <span className="profile-avatar" style={{ width: 36, height: 36, flexShrink: 0 }}>
-              {user.avatar_url ? (
-                <img src={user.avatar_url} alt="" style={{ width: "100%", height: "100%", borderRadius: "50%", objectFit: "cover" }} />
-              ) : (
-                initials(user.username)
-              )}
-            </span>
-            <div>
-              <div>Signed in as <strong>{user.username}</strong></div>
-              <div className="muted" style={{ fontSize: 12 }}>Role: {user.role}</div>
-            </div>
+          <div className="profile-dropdown-row">
+            Signed in as <strong>{user.username}</strong>
+          </div>
+          <div className="profile-dropdown-row">
+            Role: <strong style={{ textTransform: "capitalize" }}>{user.role}</strong>
           </div>
           <div className="profile-dropdown-row">
             Currency: <strong>{currencySymbol}</strong>

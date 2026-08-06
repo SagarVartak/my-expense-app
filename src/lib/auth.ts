@@ -119,9 +119,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
       await supabase.from("app_users").update({ auth_user_id: authUser.id }).eq("id", appUser.id);
     }
 
-    const avatar_url = authUser.user_metadata?.avatar_url ?? authUser.user_metadata?.picture ?? null;
-
-    return { username: appUser.username, role: appUser.role, authMethod: "google", avatar_url };
+    return { username: appUser.username, role: appUser.role, authMethod: "google" };
   } catch (e) {
     if (process.env.NODE_ENV === "development") {
       console.error("[getSessionUser] Supabase path failed:", e);
