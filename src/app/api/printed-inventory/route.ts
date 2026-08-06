@@ -160,3 +160,78 @@ export async function DELETE(req: Request) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });
   }
 }
+
+export async function PATCH(req: Request) {
+  const user = await getSessionUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!["admin", "manager"].includes(user.role)) {
+    return NextResponse.json({ error: "Forbidden: admin or manager required" }, { status: 403 });
+  }
+
+  try {
+    const body = await req.json();
+    const entryId = String(body.entry_id ?? "").trim();
+    const quantity = body.quantity !== undefined ? Math.floor(Number(body.quantity)) : undefined;
+    const printer_name = body.printer_name !== undefined ? String(body.printer_name ?? "").trim() : undefined;
+
+    if (!entryId) {
+      return NextResponse.json({ error: "entry_id is required" }, { status: 400 });
+    }
+    if (quantity === undefined && printer_name === undefined) {
+      return NextResponse.json({ error: "quantity or printer_name is required" }, { status: 400 });
+    }
+    if (quantity !== undefined && (!Number.isFinite(quantity) || quantity === 0)) {
+      return NextResponse.json({ error: "quantity must be a non-zero integer" }, { status: 400 });
+    }
+
+    const supabase = getServerSupabase();
+
+    const { data: existing, error: fetchErr } = await supabase
+      .from("printed_inventory_entries")
+      .select("id, cost_design_id, quantity, printer_name, created_by")
+      .eq("id", entryId)
+      .maybeSingle();
+
+    if (fetchErr) return NextResponse.json({ error: fetchErr.message }, { status: 500 });
+    if (!existing) return NextResponse.json({ error: "Entry not found" }, { status: 404 });
+
+    const updates: Record<string, unknown> = {};
+    if (quantity !== undefined) updates.quantity = quantity;
+    if (printer_name !== undefined) updates.printer_name = printer_name;
+
+    const { data: updated, error: updErr } = await supabase
+      .from("printed_inventory_entries")
+      .update(updates)
+      .eq("id", entryId)
+      .select("*")
+      .single();
+
+    if (updErr) return NextResponse.json({ error: updErr.message }, { status: 500 });
+
+    const { data: design } = await supabase
+      .from("cost_designs")
+      .select("keychain_design")
+      .eq("id", existing.cost_design_id)
+      .maybeSingle();
+
+    const label = design?.keychain_design || existing.cost_design_id;
+    const changes: string[] = [];
+    if (quantity !== undefined && quantity !== existing.quantity) {
+      changes.push(`quantity: ${existing.quantity} → ${quantity}`);
+    }
+    if (printer_name !== undefined && printer_name !== existing.printer_name) {
+      changes.push(`printer: "${existing.printer_name}" → "${printer_name}"`);
+    }
+    if (changes.length > 0) {
+      await insertAuditLog(
+        user.username,
+        "UPDATE_PRINT_INVENTORY",
+        `Updated inventory for "${label}" (${changes.join(", ")})`,
+      );
+    }
+
+    return NextResponse.json({ entry: updated });
+  } catch (e) {
+    return NextResponse.json({ error: (e as Error).message }, { status: 500 });
+  }
+}
