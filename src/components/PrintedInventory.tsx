@@ -16,6 +16,16 @@ function fmtShortDate(iso: string | null) {
   }
 }
 
+interface PrintedInventoryEntry {
+  id: string;
+  cost_design_id: string;
+  quantity: number;
+  printer_name: string;
+  created_by: string;
+  created_at: string;
+  order_id: string | null;
+}
+
 type Props = {
   refreshSignal: number;
   onMutated?: () => void;
@@ -31,6 +41,13 @@ export default function PrintedInventory({ refreshSignal, onMutated }: Props) {
   const [quantity, setQuantity] = useState("");
   const [printerName, setPrinterName] = useState("");
   const [currentUser, setCurrentUser] = useState<SessionUser | null>(null);
+
+  // Edit modal state
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editEntry, setEditEntry] = useState<PrintedInventoryEntry | null>(null);
+  const [editQuantity, setEditQuantity] = useState("");
+  const [editPrinterName, setEditPrinterName] = useState("");
+  const [editSaving, setEditSaving] = useState(false);
 
   const load = useCallback(async (soft: boolean) => {
     if (!soft || !loaded.current) setLoading(true);
@@ -107,20 +124,89 @@ export default function PrintedInventory({ refreshSignal, onMutated }: Props) {
 
   const canManageInventory = currentUser?.role === "admin" || currentUser?.role === "manager";
 
-  const handleDeleteEntry = async (entryId: string) => {
-    if (!window.confirm("Delete this inventory entry?")) return;
+  const handleDeleteEntry = async (costDesignId: string) => {
+    if (!window.confirm("Delete all inventory entries for this design?")) return;
     try {
-      const res = await fetch(`/api/printed-inventory/${entryId}`, { method: "DELETE" });
+      const res = await fetch(`/api/printed-inventory?cost_design_id=${encodeURIComponent(costDesignId)}`, { method: "DELETE" });
       const data = await res.json();
       if (!res.ok) {
         toast.error(data.error || "Could not delete.");
         return;
       }
-      toast.success("Entry deleted.");
+      toast.success("Entries deleted.");
       onMutated?.();
       void load(true);
     } catch {
       toast.error("Could not delete.");
+    }
+  };
+
+  const fetchEntriesForDesign = async (costDesignId: string): Promise<PrintedInventoryEntry[]> => {
+    const res = await fetch(`/api/printed-inventory/entries?cost_design_id=${encodeURIComponent(costDesignId)}`, { cache: "no-store" });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return (data.entries || []) as PrintedInventoryEntry[];
+  };
+
+  const handleOpenEdit = async (costDesignId: string) => {
+    const entries = await fetchEntriesForDesign(costDesignId);
+    if (entries.length === 0) {
+      toast.error("No entries found for this design.");
+      return;
+    }
+    if (entries.length === 1) {
+      openEditModal(entries[0]);
+    } else {
+      // For multiple entries, show a selection or edit the latest one
+      openEditModal(entries[0]); // latest entry (first in desc order)
+    }
+  };
+
+  const openEditModal = (entry: PrintedInventoryEntry) => {
+    setEditEntry(entry);
+    setEditQuantity(String(entry.quantity));
+    setEditPrinterName(entry.printer_name || "");
+    setEditModalOpen(true);
+  };
+
+  const handleCloseEditModal = () => {
+    setEditModalOpen(false);
+    setEditEntry(null);
+    setEditQuantity("");
+    setEditPrinterName("");
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editEntry) return;
+    const q = Math.floor(Number.parseInt(editQuantity, 10));
+    if (!Number.isFinite(q) || q === 0) {
+      toast.error("Enter a non-zero quantity.");
+      return;
+    }
+    setEditSaving(true);
+    try {
+      const res = await fetch("/api/printed-inventory", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          entry_id: editEntry.id,
+          quantity: q,
+          printer_name: editPrinterName.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || "Could not update.");
+        return;
+      }
+      toast.success("Entry updated.");
+      handleCloseEditModal();
+      onMutated?.();
+      void load(true);
+    } catch {
+      toast.error("Could not update.");
+    } finally {
+      setEditSaving(false);
     }
   };
 
@@ -243,6 +329,13 @@ export default function PrintedInventory({ refreshSignal, onMutated }: Props) {
                         <td>
                           <div className="design-table-actions">
                             <button
+                              type="button"
+                              onClick={() => void handleOpenEdit(r.cost_design_id)}
+                              title="Edit latest entry for this design"
+                            >
+                              Edit
+                            </button>
+                            <button
                               className="delete"
                               type="button"
                               onClick={() => void handleDeleteEntry(r.cost_design_id)}
@@ -261,6 +354,62 @@ export default function PrintedInventory({ refreshSignal, onMutated }: Props) {
           </table>
         </div>
       </section>
+
+      {editModalOpen && editEntry && (
+        <div className="modal-overlay modal-overlay--portal" onClick={handleCloseEditModal}>
+          <div className="modal-panel modal-panel--account" onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ margin: "0 0 16px", fontSize: 16, fontWeight: 600 }}>Edit Inventory Entry</h3>
+            <p className="muted" style={{ marginBottom: 16, fontSize: 13 }}>
+              Design: <strong style={{ color: "var(--text)" }}>{editEntry.created_at}</strong> — created by {editEntry.created_by}
+            </p>
+            <div style={{ marginBottom: 12 }}>
+              <label htmlFor="edit-qty" style={{ display: "block", fontSize: 12, color: "var(--muted)", marginBottom: 6 }}>
+                Quantity
+              </label>
+              <input
+                id="edit-qty"
+                type="number"
+                inputMode="numeric"
+                step={1}
+                value={editQuantity}
+                onChange={(e) => setEditQuantity(e.target.value)}
+                style={{ width: "100%", padding: "11px 14px", borderRadius: "var(--radius-sm)", border: "1px solid var(--border-strong)", background: "color-mix(in srgb, var(--bg) 65%, var(--surface))", color: "var(--text)", fontSize: "0.9375rem", minHeight: "44px" }}
+              />
+            </div>
+            <div style={{ marginBottom: 16 }}>
+              <label htmlFor="edit-printer" style={{ display: "block", fontSize: 12, color: "var(--muted)", marginBottom: 6 }}>
+                Printer (optional)
+              </label>
+              <input
+                id="edit-printer"
+                type="text"
+                placeholder="e.g. Ender 3"
+                value={editPrinterName}
+                onChange={(e) => setEditPrinterName(e.target.value)}
+                autoComplete="off"
+                style={{ width: "100%", padding: "11px 14px", borderRadius: "var(--radius-sm)", border: "1px solid var(--border-strong)", background: "color-mix(in srgb, var(--bg) 65%, var(--surface))", color: "var(--text)", fontSize: "0.9375rem", minHeight: "44px" }}
+              />
+            </div>
+            <div className="btnbar" style={{ justifyContent: "flex-end", gap: 8 }}>
+              <button
+                className="btn-ghost"
+                type="button"
+                onClick={handleCloseEditModal}
+                disabled={editSaving}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleSaveEdit()}
+                disabled={editSaving}
+              >
+                {editSaving ? "Saving…" : "Save Changes"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
