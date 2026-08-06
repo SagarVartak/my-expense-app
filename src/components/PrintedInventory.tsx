@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "react-toastify";
-import type { CostDesign, PrintedInventoryDesignRow } from "@/lib/types";
+import type { CostDesign, PrintedInventoryDesignRow, SessionUser } from "@/lib/types";
+import { clientFetch } from "@/lib/clientFetch";
 
 function fmtShortDate(iso: string | null) {
   if (!iso) return "—";
@@ -29,13 +30,15 @@ export default function PrintedInventory({ refreshSignal, onMutated }: Props) {
   const [costDesignId, setCostDesignId] = useState("");
   const [quantity, setQuantity] = useState("");
   const [printerName, setPrinterName] = useState("");
+  const [currentUser, setCurrentUser] = useState<SessionUser | null>(null);
 
   const load = useCallback(async (soft: boolean) => {
     if (!soft || !loaded.current) setLoading(true);
     try {
-      const [invRes, dRes] = await Promise.all([
+      const [invRes, dRes, userRes] = await Promise.all([
         fetch("/api/printed-inventory", { cache: "no-store" }),
         fetch("/api/cost-designs", { cache: "no-store" }),
+        clientFetch("/api/auth/me", { cache: "no-store" }),
       ]);
       const inv = await invRes.json();
       const dJson = await dRes.json();
@@ -45,6 +48,10 @@ export default function PrintedInventory({ refreshSignal, onMutated }: Props) {
       }
       if (dRes.ok) {
         setDesigns((dJson.designs || []) as CostDesign[]);
+      }
+      if (userRes.ok) {
+        const userData = await userRes.json();
+        setCurrentUser(userData.user);
       }
       setRows((inv.rows || []) as PrintedInventoryDesignRow[]);
       loaded.current = true;
@@ -95,6 +102,25 @@ export default function PrintedInventory({ refreshSignal, onMutated }: Props) {
       toast.error("Could not save.");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const canManageInventory = currentUser?.role === "admin" || currentUser?.role === "manager";
+
+  const handleDeleteEntry = async (entryId: string) => {
+    if (!window.confirm("Delete this inventory entry?")) return;
+    try {
+      const res = await fetch(`/api/printed-inventory/${entryId}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || "Could not delete.");
+        return;
+      }
+      toast.success("Entry deleted.");
+      onMutated?.();
+      void load(true);
+    } catch {
+      toast.error("Could not delete.");
     }
   };
 
@@ -171,38 +197,65 @@ export default function PrintedInventory({ refreshSignal, onMutated }: Props) {
               <tr>
                 <th className="design-th-design">Design</th>
                 <th className="amt">Net qty</th>
+                <th>Coloured</th>
                 <th>Last printer</th>
                 <th>Last print</th>
+                {canManageInventory ? <th className="design-th-action">Action</th> : null}
               </tr>
             </thead>
             <tbody>
               {loading && !loaded.current ? (
                 <tr>
-                  <td colSpan={4} className="muted">
+                  <td colSpan={canManageInventory ? 6 : 5} className="muted">
                     Loading inventory…
                   </td>
                 </tr>
               ) : rows.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="muted">
+                  <td colSpan={canManageInventory ? 6 : 5} className="muted">
                     No saved designs. Add designs under Cost Price Calculator first.
                   </td>
                 </tr>
               ) : (
-                rows.map((r) => (
-                  <tr key={r.cost_design_id}>
-                    <td style={{ maxWidth: 220 }} title={r.keychain_design}>
-                      <span className="design-name-cell">{r.keychain_design}</span>
-                    </td>
-                    <td className="amt">{r.total_printed}</td>
-                    <td className="muted" style={{ fontSize: 13 }}>
-                      {r.last_printer_name?.trim() ? r.last_printer_name : "—"}
-                    </td>
-                    <td className="muted" style={{ fontSize: 12, whiteSpace: "nowrap" }}>
-                      {fmtShortDate(r.last_print_at)}
-                    </td>
-                  </tr>
-                ))
+                rows.map((r) => {
+                  const design = designs.find((d) => d.id === r.cost_design_id);
+                  const isColoured = (design?.colour_cost ?? 0) > 0;
+                  return (
+                    <tr key={r.cost_design_id}>
+                      <td style={{ maxWidth: 220 }} title={r.keychain_design}>
+                        <span className="design-name-cell">{r.keychain_design}</span>
+                      </td>
+                      <td className="amt">{r.total_printed}</td>
+                      <td style={{ textAlign: "center" }}>
+                        {isColoured ? (
+                          <span style={{ color: "#7dffc4" }}>● Coloured</span>
+                        ) : (
+                          <span className="muted">○ Plain</span>
+                        )}
+                      </td>
+                      <td className="muted" style={{ fontSize: 13 }}>
+                        {r.last_printer_name?.trim() ? r.last_printer_name : "—"}
+                      </td>
+                      <td className="muted" style={{ fontSize: 12, whiteSpace: "nowrap" }}>
+                        {fmtShortDate(r.last_print_at)}
+                      </td>
+                      {canManageInventory ? (
+                        <td>
+                          <div className="design-table-actions">
+                            <button
+                              className="delete"
+                              type="button"
+                              onClick={() => void handleDeleteEntry(r.cost_design_id)}
+                              title="Delete all entries for this design"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </td>
+                      ) : null}
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
