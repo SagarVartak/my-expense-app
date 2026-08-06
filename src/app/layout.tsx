@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
 import ToastifyProvider from "@/components/ToastifyProvider";
+import AdSenseProvider from "@/components/ads/AdSenseProvider";
 import { APP_DESCRIPTION, APP_NAME } from "@/lib/appMeta";
 import "./globals.css";
 
@@ -45,8 +46,10 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-[var(--bg)] text-[var(--text)]">
-        <ServiceWorkerRegister />
-        <ToastifyProvider>{children}</ToastifyProvider>
+        <AdSenseProvider>
+          <ServiceWorkerRegister />
+          <ToastifyProvider>{children}</ToastifyProvider>
+        </AdSenseProvider>
       </body>
     </html>
   );
