@@ -21,7 +21,7 @@ import OrdersTable from "@/components/OrdersTable";
 import PrintedInventory from "@/components/PrintedInventory";
 import { clientFetch } from "@/lib/clientFetch";
 import { APP_DESCRIPTION, APP_NAME } from "@/lib/appMeta";
-import type { AppUser, AuditLog, Expense, SessionUser } from "@/lib/types";
+import type { AppUser, AuditLog, Expense, SessionUser, Role } from "@/lib/types";
 
 type NavId =
   | "inventory"
@@ -488,7 +488,7 @@ export default function Home() {
     }
   };
 
-  const createUser = async (payload: { username: string; role: "admin" | "member"; email: string }) => {
+  const createUser = async (payload: { username: string; role: Role; email: string }) => {
     const res = await clientFetch("/api/users", {
       method: "POST",
       headers: { "Content-Type": "application/json" },

@@ -1,6 +1,16 @@
 -- Enable RLS on all public tables and create basic policies
 -- Run in Supabase SQL Editor
 
+-- Drop existing policies first to avoid conflicts
+DO $$
+DECLARE
+    pol record;
+BEGIN
+    FOR pol IN SELECT policyname, tablename FROM pg_policies WHERE schemaname = 'public' LOOP
+        EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', pol.policyname, pol.tablename);
+    END LOOP;
+END $$;
+
 -- ============================================
 -- 1. EXPENSES
 -- ============================================

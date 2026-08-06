@@ -105,7 +105,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
           primer_cost: Number(updated.primer_cost),
           clearcoat_cost: Number(updated.clearcoat_cost),
           key_caps_cost: Number(updated.key_caps_cost ?? 0),
-          colour_cost: Number(updated.colour_cost ?? 0),
+          colour_cost: Number((updated as Record<string, unknown>).colour_cost ?? 0),
           shipping: Number(updated.shipping),
           total_cost_price: Number(updated.total_cost_price),
           created_at: updated.created_at as string | null | undefined,

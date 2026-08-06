@@ -74,6 +74,7 @@ type CostDesignRow = {
   primer_cost: number;
   clearcoat_cost: number;
   key_caps_cost: number;
+  colour_cost: number;
   shipping: number;
   total_cost_price: number;
   created_at?: string | null;

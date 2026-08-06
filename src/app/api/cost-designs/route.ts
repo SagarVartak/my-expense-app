@@ -99,7 +99,7 @@ export async function POST(req: Request) {
           primer_cost: Number(data.primer_cost),
           clearcoat_cost: Number(data.clearcoat_cost),
           key_caps_cost: Number(data.key_caps_cost ?? 0),
-          colour_cost: Number(data.colour_cost ?? 0),
+          colour_cost: Number((data as Record<string, unknown>).colour_cost ?? 0),
           shipping: Number(data.shipping),
           total_cost_price: Number(data.total_cost_price),
           created_at: data.created_at as string | null | undefined,

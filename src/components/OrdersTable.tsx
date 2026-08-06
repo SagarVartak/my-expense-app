@@ -190,7 +190,7 @@ orders.map((o) => {
                 const itemsDisplay = items.length > 0
                   ? items.map((item) => (
                       <div key={item.id} style={{ fontSize: 11, display: "flex", alignItems: "center", gap: 4 }}>
-                        <span>{item.keychain_design || item.design_name || "—"}</span>
+                        <span>{item.keychain_design || "—"}</span>
                         <span className="muted">×{item.quantity}</span>
                         {item.unit_selling_price != null && (
                           <span className="muted">@ {fmtOrderMoney(currencySymbol, item.unit_selling_price)}</span>
