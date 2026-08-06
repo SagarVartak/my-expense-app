@@ -43,6 +43,7 @@ export default function CostPriceCalculator({
   const [primerCost, setPrimerCost] = useState("");
   const [clearcoatCost, setClearcoatCost] = useState("");
   const [keyCapsCost, setKeyCapsCost] = useState("");
+  const [colourCost, setColourCost] = useState("");
   const [shipping, setShipping] = useState("");
   const [saveBump, setSaveBump] = useState(0);
 
@@ -63,6 +64,7 @@ export default function CostPriceCalculator({
       parseN(primerCost) +
       parseN(clearcoatCost) +
       parseN(keyCapsCost) +
+      parseN(colourCost) +
       parseN(shipping),
     [
       filamentLineCost,
@@ -73,6 +75,7 @@ export default function CostPriceCalculator({
       primerCost,
       clearcoatCost,
       keyCapsCost,
+      colourCost,
       shipping,
     ],
   );
@@ -90,6 +93,7 @@ export default function CostPriceCalculator({
     setPrimerCost("");
     setClearcoatCost("");
     setKeyCapsCost("");
+    setColourCost("");
     setShipping("");
   };
 
@@ -115,6 +119,7 @@ export default function CostPriceCalculator({
           primer_cost: parseN(primerCost),
           clearcoat_cost: parseN(clearcoatCost),
           key_caps_cost: parseN(keyCapsCost),
+          colour_cost: parseN(colourCost),
           shipping: parseN(shipping),
         }),
       });
@@ -139,7 +144,7 @@ export default function CostPriceCalculator({
         <h2>Cost Price Calculator</h2>
         <p className="calc-lead muted">
           Keychain design costing. Total cost = (print weight × filament cost per g) + electricity + chain + pouch +
-          card + primer + clearcoat + key caps + shipping.
+          card + primer + clearcoat + key caps + colour + shipping.
         </p>
 
         <div style={{ marginTop: 14 }}>
@@ -216,6 +221,14 @@ export default function CostPriceCalculator({
             <label htmlFor="cpc-keycaps">Key caps</label>
             <DecimalCostInput id="cpc-keycaps" value={keyCapsCost} onValueChange={setKeyCapsCost} />
           </div>
+        </div>
+        <div className="row3" style={{ marginTop: 10 }}>
+          <div>
+            <label htmlFor="cpc-colour">Colour cost</label>
+            <DecimalCostInput id="cpc-colour" value={colourCost} onValueChange={setColourCost} placeholder="0 (for coloured keychains)" />
+          </div>
+          <div aria-hidden />
+          <div aria-hidden />
         </div>
         <div className="row3" style={{ marginTop: 10 }}>
           <div className="span-row3">

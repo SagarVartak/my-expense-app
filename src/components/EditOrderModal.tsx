@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { toast } from "react-toastify";
 import InlineSpinner from "@/components/InlineSpinner";
 import { fmtOrderMoney } from "@/lib/orderLedgerDisplay";
-import type { CostDesign, OrderLedgerEntry } from "@/lib/types";
+import type { CostDesign, OrderLedgerEntry, OrderLedgerItem } from "@/lib/types";
 
 const PAYMENT_METHODS = ["Cash", "Card", "Bank Transfer", "UPI", "Wallet", "Other"];
 const PAYMENT_STATUS = ["Pending", "Paid", "Partial", "Refunded", "Failed"];
@@ -24,20 +24,24 @@ function parseN(s: string): number {
   return Number.isFinite(x) ? x : 0;
 }
 
+type OrderItemForm = {
+  costDesignId: string;
+  quantity: number;
+  unitSellingPrice: number;
+};
+
 export default function EditOrderModal({ open, order, currencySymbol, onClose, onRequestSubmitted }: Props) {
   const [designs, setDesigns] = useState<CostDesign[]>([]);
   const [loadingDesigns, setLoadingDesigns] = useState(true);
   const [saving, setSaving] = useState(false);
 
   const [orderDate, setOrderDate] = useState("");
-  const [costDesignId, setCostDesignId] = useState("");
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [shipmentTracking, setShipmentTracking] = useState("");
   const [shippingAddress, setShippingAddress] = useState("");
   const [actualWeightG, setActualWeightG] = useState("");
-  const [units, setUnits] = useState("1");
-  const [sellingPrice, setSellingPrice] = useState("");
+  const [items, setItems] = useState<OrderItemForm[]>([]);
   const [paymentMethod, setPaymentMethod] = useState(PAYMENT_METHODS[0]);
   const [paymentStatus, setPaymentStatus] = useState(PAYMENT_STATUS[0]);
   const [deliveryStatus, setDeliveryStatus] = useState(DELIVERY_STATUS[0]);
@@ -66,14 +70,11 @@ export default function EditOrderModal({ open, order, currencySymbol, onClose, o
   useEffect(() => {
     if (!open || !order) return;
     setOrderDate(String(order.order_date ?? "").slice(0, 10));
-    setCostDesignId(order.cost_design_id ?? "");
     setCustomerName(order.customer_name ?? "");
     setCustomerPhone(order.customer_phone ?? "");
     setShipmentTracking(order.shipment_tracking ?? "");
     setShippingAddress(order.shipping_address ?? "");
     setActualWeightG(String(order.actual_weight_g ?? ""));
-    setUnits(String(order.units ?? 1));
-    setSellingPrice(String(order.selling_price ?? ""));
     setPaymentMethod(order.payment_method || PAYMENT_METHODS[0]);
     setPaymentStatus(order.payment_status || PAYMENT_STATUS[0]);
     setDeliveryStatus(order.delivery_status || DELIVERY_STATUS[0]);
@@ -81,28 +82,53 @@ export default function EditOrderModal({ open, order, currencySymbol, onClose, o
     setFeedback(order.feedback ?? "");
     setCustomerBehaviour(order.customer_behaviour ?? "");
     setExcludeShippingFromCost(order.exclude_shipping_from_cost === true);
+
+    // Load items from order.items or fall back to legacy single-design fields
+    if (order.items && order.items.length > 0) {
+      setItems(
+        order.items.map((item) => ({
+          costDesignId: item.cost_design_id,
+          quantity: item.quantity,
+          unitSellingPrice: item.unit_selling_price,
+        }))
+      );
+    } else {
+      // Legacy: single design
+      setItems([
+        {
+          costDesignId: order.cost_design_id ?? "",
+          quantity: order.units ?? 1,
+          unitSellingPrice: order.selling_price ?? 0,
+        },
+      ]);
+    }
   }, [open, order]);
 
-  const selectedDesign = useMemo(
-    () => designs.find((d) => d.id === costDesignId) ?? null,
-    [designs, costDesignId],
-  );
+  const itemRows = useMemo(() => {
+    return items.map((item, index) => {
+      const design = designs.find((d) => d.id === item.costDesignId);
+      const designTotalCost = design ? Number(design.total_cost_price) : 0;
+      const designShipping = design ? Number(design.shipping) : 0;
+      const unitCostPrice = excludeShippingFromCost ? Math.max(0, designTotalCost - designShipping) : designTotalCost;
+      const lineTotalCost = unitCostPrice * item.quantity;
+      const lineTotalSelling = item.unitSellingPrice * item.quantity;
+      const lineNetProfit = lineTotalSelling - lineTotalCost;
+      return { design, unitCostPrice, lineTotalCost, lineTotalSelling, lineNetProfit };
+    });
+  }, [items, designs, excludeShippingFromCost]);
 
-  const totalCostPrice = selectedDesign ? Number(selectedDesign.total_cost_price) : 0;
-  const designShipping = selectedDesign ? Number(selectedDesign.shipping) : 0;
-  const effectiveTotalCost = useMemo(() => {
-    if (!selectedDesign) return 0;
-    if (!excludeShippingFromCost) return totalCostPrice;
-    return Math.max(0, totalCostPrice - designShipping);
-  }, [selectedDesign, totalCostPrice, designShipping, excludeShippingFromCost]);
-
-  const sellingNum = useMemo(() => parseN(sellingPrice), [sellingPrice]);
-  const netProfit = sellingNum - effectiveTotalCost;
+  const grandTotalCost = useMemo(() => itemRows.reduce((sum, r) => sum + r.lineTotalCost, 0), [itemRows]);
+  const grandTotalSelling = useMemo(() => itemRows.reduce((sum, r) => sum + r.lineTotalSelling, 0), [itemRows]);
+  const grandNetProfit = grandTotalSelling - grandTotalCost;
 
   const handleSubmit = async () => {
     if (!order) return;
-    if (!costDesignId) {
-      toast.error("Select a design.");
+    if (items.length === 0) {
+      toast.error("Add at least one keychain design to the order.");
+      return;
+    }
+    if (items.some((item) => !item.costDesignId)) {
+      toast.error("Select a design for all items.");
       return;
     }
     if (!customerName.trim()) {
@@ -111,19 +137,30 @@ export default function EditOrderModal({ open, order, currencySymbol, onClose, o
     }
     setSaving(true);
     try {
+      const orderItems = items.map((item) => {
+        const design = designs.find((d) => d.id === item.costDesignId)!;
+        const designTotalCost = Number(design.total_cost_price);
+        const designShipping = Number(design.shipping);
+        const unitCostPrice = excludeShippingFromCost ? Math.max(0, designTotalCost - designShipping) : designTotalCost;
+        return {
+          cost_design_id: item.costDesignId,
+          quantity: item.quantity,
+          unit_cost_price: unitCostPrice,
+          unit_selling_price: item.unitSellingPrice,
+        };
+      });
+
       const res = await fetch(`/api/order-ledger/${order.id}/change-requests`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           order_date: orderDate,
-          cost_design_id: costDesignId,
           customer_name: customerName.trim(),
           customer_phone: customerPhone.trim(),
           shipment_tracking: shipmentTracking.trim(),
           shipping_address: shippingAddress.trim(),
           actual_weight_g: actualWeightG,
-          units: Math.max(1, Math.floor(Number(units) || 1)),
-          selling_price: sellingNum,
+          items: orderItems,
           payment_method: paymentMethod,
           payment_status: paymentStatus,
           delivery_status: deliveryStatus,
@@ -157,6 +194,18 @@ export default function EditOrderModal({ open, order, currencySymbol, onClose, o
     return () => document.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
+  const addItem = () => {
+    setItems((prev) => [...prev, { costDesignId: "", quantity: 1, unitSellingPrice: 0 }]);
+  };
+
+  const removeItem = (index: number) => {
+    setItems((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const updateItem = (index: number, field: keyof OrderItemForm, value: string | number) => {
+    setItems((prev) => prev.map((item, i) => (i === index ? { ...item, [field]: value } : item)));
+  };
+
   if (!open || !order) return null;
   if (typeof document === "undefined") return null;
 
@@ -188,28 +237,9 @@ export default function EditOrderModal({ open, order, currencySymbol, onClose, o
             <input id="eom-date" type="date" value={orderDate} onChange={(e) => setOrderDate(e.target.value)} />
           </div>
           <div>
-            <label htmlFor="eom-design">Design</label>
-            <select
-              id="eom-design"
-              value={costDesignId}
-              onChange={(e) => setCostDesignId(e.target.value)}
-              disabled={loadingDesigns}
-            >
-              <option value="">{loadingDesigns ? "Loading…" : "Select"}</option>
-              {designs.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.keychain_design}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
             <label htmlFor="eom-customer">Customer name</label>
             <input id="eom-customer" value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
           </div>
-        </div>
-
-        <div className="row3" style={{ marginTop: 10 }}>
           <div>
             <label htmlFor="eom-phone">Customer phone</label>
             <input
@@ -221,6 +251,9 @@ export default function EditOrderModal({ open, order, currencySymbol, onClose, o
               placeholder="Optional"
             />
           </div>
+        </div>
+
+        <div className="row3" style={{ marginTop: 10 }}>
           <div>
             <label htmlFor="eom-tracking">Shipment tracking #</label>
             <input
@@ -232,6 +265,7 @@ export default function EditOrderModal({ open, order, currencySymbol, onClose, o
             />
           </div>
           <div aria-hidden />
+          <div aria-hidden />
         </div>
 
         <div style={{ marginTop: 10 }}>
@@ -239,61 +273,119 @@ export default function EditOrderModal({ open, order, currencySymbol, onClose, o
           <textarea id="eom-address" value={shippingAddress} onChange={(e) => setShippingAddress(e.target.value)} rows={2} />
         </div>
 
-        <div className="row3" style={{ marginTop: 10 }}>
-          <div>
-            <label htmlFor="eom-weight">Actual weight (g)</label>
-            <input
-              id="eom-weight"
-              type="number"
-              inputMode="decimal"
-              step="any"
-              min="0"
-              value={actualWeightG}
-              onChange={(e) => setActualWeightG(e.target.value)}
-            />
-          </div>
-          <div>
-            <label htmlFor="eom-units">Units (inventory)</label>
-            <input
-              id="eom-units"
-              type="number"
-              inputMode="numeric"
-              min={1}
-              step={1}
-              value={units}
-              onChange={(e) => setUnits(e.target.value)}
-              title="Deducted from printed stock when this edit is approved"
-            />
-          </div>
-          <div>
-            <label htmlFor="eom-selling">Selling price</label>
-            <input
-              id="eom-selling"
-              type="number"
-              inputMode="decimal"
-              step="any"
-              min="0"
-              value={sellingPrice}
-              onChange={(e) => setSellingPrice(e.target.value)}
-            />
-          </div>
+        <div style={{ marginTop: 10 }}>
+          <label htmlFor="eom-weight">Actual weight (g) — total for all items</label>
+          <input
+            id="eom-weight"
+            type="number"
+            inputMode="decimal"
+            step="any"
+            min="0"
+            value={actualWeightG}
+            onChange={(e) => setActualWeightG(e.target.value)}
+          />
         </div>
 
-        <div style={{ marginTop: 10 }}>
-          <label>Total cost for order</label>
-          <div
-            className="muted"
-            style={{
-              padding: "10px 12px",
-              borderRadius: 12,
-              border: "1px solid rgba(255,255,255,0.14)",
-              background: "rgba(7, 12, 24, 0.52)",
-              fontWeight: 600,
-              maxWidth: 320,
-            }}
-          >
-            {costDesignId ? fmtOrderMoney(currencySymbol, effectiveTotalCost) : "—"}
+        <div style={{ marginTop: 14 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+            <h3 style={{ margin: 0, fontSize: 15 }}>Order Items</h3>
+            <button type="button" onClick={addItem} disabled={saving || loadingDesigns}>
+              + Add Item
+            </button>
           </div>
+          {loadingDesigns ? (
+            <div className="muted" style={{ padding: 12, textAlign: "center" }}>Loading designs…</div>
+          ) : designs.length === 0 ? (
+            <div className="muted" style={{ padding: 12, textAlign: "center" }}>
+              No saved designs yet — add one under Cost Price Calculator first.
+            </div>
+          ) : (
+            <div style={{ overflowX: "auto" }}>
+              <table className="order-table" style={{ minWidth: 700 }}>
+                <thead>
+                  <tr>
+                    <th style={{ width: 200 }}>Keychain Design</th>
+                    <th className="amt" style={{ width: 100 }}>Qty</th>
+                    <th className="amt" style={{ width: 140 }}>Unit Cost</th>
+                    <th className="amt" style={{ width: 140 }}>Unit Selling</th>
+                    <th className="amt" style={{ width: 140 }}>Line Total Cost</th>
+                    <th className="amt" style={{ width: 140 }}>Line Total Selling</th>
+                    <th className="amt" style={{ width: 140 }}>Line Net Profit</th>
+                    <th className="design-th-action" style={{ width: 60 }}>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {items.map((item, index) => {
+                    const design = designs.find((d) => d.id === item.costDesignId);
+                    const designTotalCost = design ? Number(design.total_cost_price) : 0;
+                    const designShipping = design ? Number(design.shipping) : 0;
+                    const unitCostPrice = excludeShippingFromCost ? Math.max(0, designTotalCost - designShipping) : designTotalCost;
+                    const lineTotalCost = unitCostPrice * item.quantity;
+                    const lineTotalSelling = item.unitSellingPrice * item.quantity;
+                    const lineNetProfit = lineTotalSelling - lineTotalCost;
+                    return (
+                      <tr key={index}>
+                        <td>
+                          <select
+                            value={item.costDesignId}
+                            onChange={(e) => updateItem(index, "costDesignId", e.target.value)}
+                            disabled={loadingDesigns}
+                            style={{ width: "100%", minWidth: 180 }}
+                          >
+                            <option value="">Select a design</option>
+                            {designs.map((d) => (
+                              <option key={d.id} value={d.id}>
+                                {d.keychain_design}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                        <td className="amt">
+                          <input
+                            type="number"
+                            inputMode="numeric"
+                            min={1}
+                            step={1}
+                            value={item.quantity}
+                            onChange={(e) => updateItem(index, "quantity", Math.max(1, Math.floor(Number(e.target.value) || 1)))}
+                            style={{ width: "100%" }}
+                          />
+                        </td>
+                        <td className="amt">{design ? fmtOrderMoney(currencySymbol, unitCostPrice) : "—"}</td>
+                        <td className="amt">
+                          <input
+                            type="number"
+                            inputMode="decimal"
+                            step="any"
+                            min="0"
+                            value={item.unitSellingPrice}
+                            onChange={(e) => updateItem(index, "unitSellingPrice", parseFloat(e.target.value) || 0)}
+                            style={{ width: "100%" }}
+                          />
+                        </td>
+                        <td className="amt">{fmtOrderMoney(currencySymbol, lineTotalCost)}</td>
+                        <td className="amt">{fmtOrderMoney(currencySymbol, lineTotalSelling)}</td>
+                        <td className={`amt${lineNetProfit >= 0 ? " design-net-pos" : " design-net-neg"}`}>
+                          {fmtOrderMoney(currencySymbol, lineNetProfit)}
+                        </td>
+                        <td>
+                          <button
+                            type="button"
+                            className="delete"
+                            onClick={() => removeItem(index)}
+                            disabled={items.length <= 1 || saving}
+                            title="Remove item"
+                          >
+                            ✕
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
 
         <div className="row3" style={{ marginTop: 12 }}>
@@ -303,15 +395,46 @@ export default function EditOrderModal({ open, order, currencySymbol, onClose, o
               type="checkbox"
               checked={excludeShippingFromCost}
               onChange={(e) => setExcludeShippingFromCost(e.target.checked)}
-              disabled={!costDesignId}
+              disabled={items.length === 0 || loadingDesigns}
             />
-            <span>Exclude saved design shipping from this order’s cost.</span>
+            <span>Exclude saved design shipping from this order's cost.</span>
           </label>
+        </div>
+
+        <div style={{ marginTop: 12, padding: 12, borderRadius: 12, border: "1px solid rgba(255,255,255,0.14)", background: "rgba(7, 12, 24, 0.52)" }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 24, alignItems: "center" }}>
+            <div>
+              <div className="muted" style={{ fontSize: 12 }}>Total Cost</div>
+              <div style={{ fontWeight: 600, color: "var(--text)" }}>{fmtOrderMoney(currencySymbol, grandTotalCost)}</div>
+            </div>
+            <div>
+              <div className="muted" style={{ fontSize: 12 }}>Total Selling</div>
+              <div style={{ fontWeight: 600, color: "var(--text)" }}>{fmtOrderMoney(currencySymbol, grandTotalSelling)}</div>
+            </div>
+            <div>
+              <div className="muted" style={{ fontSize: 12 }}>Net Profit</div>
+              <div
+                style={{
+                  fontWeight: 600,
+                  color: grandNetProfit >= 0 ? "#7dffc4" : "#ff9eb0",
+                }}
+              >
+                {fmtOrderMoney(currencySymbol, grandNetProfit)}
+              </div>
+            </div>
+          </div>
+          {items.length > 0 && excludeShippingFromCost && (
+            <p className="muted" style={{ marginTop: 8, fontSize: 12 }}>
+              Design shipping fees excluded from cost.
+            </p>
+          )}
         </div>
 
         <p className="muted" style={{ marginTop: 8, fontSize: 13 }}>
           Net profit:{" "}
-          <strong style={{ color: netProfit >= 0 ? "#7dffc4" : "#ff9eb0" }}>{fmtOrderMoney(currencySymbol, netProfit)}</strong>
+          <strong style={{ color: grandNetProfit >= 0 ? "#7dffc4" : "#ff9eb0" }}>
+            {fmtOrderMoney(currencySymbol, grandNetProfit)}
+          </strong>
         </p>
 
         <div className="row3" style={{ marginTop: 10 }}>

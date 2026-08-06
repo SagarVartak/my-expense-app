@@ -119,10 +119,13 @@ export default function Home() {
       "audit",
       "users",
       "designChangeApprovals",
-      "orderApprovals",
       "deletionApprovals",
     ];
-    if (adminOnly.includes(id) && currentUser.role !== "admin") return;
+    const managerOnly: NavId[] = [
+      "orderApprovals",
+    ];
+    if ((adminOnly.includes(id) && currentUser.role !== "admin") ||
+        (managerOnly.includes(id) && !["admin", "manager"].includes(currentUser.role))) return;
     deepLinkNavApplied.current = true;
     setActiveNav(id);
     window.history.replaceState(null, "", "/");
@@ -541,7 +544,7 @@ export default function Home() {
 
   return (
     <div className="app-shell">
-      {currentUser.role === "admin" ? (
+      {currentUser.role === "admin" || currentUser.role === "manager" ? (
         <AdminRealtimeListener enabled onAlert={handleAdminRealtimeAlert} />
       ) : null}
       <header className="app-top">
@@ -615,38 +618,57 @@ export default function Home() {
           <button type="button" className={navBtnClass("orderLedger")} onClick={() => setActiveNav("orderLedger")}>
             Order Ledger
           </button>
-          {currentUser.role === "admin" ? (
+          {currentUser.role === "admin" || currentUser.role === "manager" ? (
             <>
               <div className="sidebar-label" style={{ marginTop: 8 }}>
                 Approvals
               </div>
-              <button
-                type="button"
-                className={navBtnClass("designChangeApprovals")}
-                onClick={() => setActiveNav("designChangeApprovals")}
-              >
-                Design changes
-              </button>
-              <button
-                type="button"
-                className={navBtnClass("orderApprovals")}
-                onClick={() => setActiveNav("orderApprovals")}
-              >
-                Orders
-              </button>
-              <button
-                type="button"
-                className={navBtnClass("deletionApprovals")}
-                onClick={() => setActiveNav("deletionApprovals")}
-              >
-                Deletions
-              </button>
-              <button type="button" className={navBtnClass("audit")} onClick={() => setActiveNav("audit")}>
-                Audit log
-              </button>
-              <button type="button" className={navBtnClass("users")} onClick={() => setActiveNav("users")}>
-                Team
-              </button>
+              {currentUser.role === "admin" && (
+                <>
+                  <button
+                    type="button"
+                    className={navBtnClass("designChangeApprovals")}
+                    onClick={() => setActiveNav("designChangeApprovals")}
+                  >
+                    Design changes
+                  </button>
+                  <button
+                    type="button"
+                    className={navBtnClass("orderApprovals")}
+                    onClick={() => setActiveNav("orderApprovals")}
+                  >
+                    Orders
+                  </button>
+                  <button
+                    type="button"
+                    className={navBtnClass("deletionApprovals")}
+                    onClick={() => setActiveNav("deletionApprovals")}
+                  >
+                    Deletions
+                  </button>
+                </>
+              )}
+              {currentUser.role === "manager" && (
+                <>
+                  <button
+                    type="button"
+                    className={navBtnClass("orderApprovals")}
+                    onClick={() => setActiveNav("orderApprovals")}
+                  >
+                    Orders
+                  </button>
+                </>
+              )}
+              {currentUser.role === "admin" && (
+                <>
+                  <button type="button" className={navBtnClass("audit")} onClick={() => setActiveNav("audit")}>
+                    Audit log
+                  </button>
+                  <button type="button" className={navBtnClass("users")} onClick={() => setActiveNav("users")}>
+                    Team
+                  </button>
+                </>
+              )}
             </>
           ) : null}
         </nav>
@@ -901,7 +923,7 @@ export default function Home() {
               }}
             />
           ) : null}
-          {activeNav === "orderApprovals" && currentUser.role === "admin" ? (
+          {activeNav === "orderApprovals" && (currentUser.role === "admin" || currentUser.role === "manager") ? (
             <OrderApprovalsPanel
               currencySymbol={currencySymbol}
               refreshSignal={approvalRefresh}

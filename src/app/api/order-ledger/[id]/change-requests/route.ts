@@ -47,8 +47,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       );
     }
 
-    const cost_design_id = String(body.cost_design_id ?? "").trim();
-    if (!cost_design_id) return NextResponse.json({ error: "Select a saved design." }, { status: 400 });
+    // Handle new items array format
+    const items = body.items as Array<{
+      cost_design_id: string;
+      quantity: number;
+      unit_selling_price: number;
+    }> | undefined;
+
+    if (!items || items.length === 0) {
+      return NextResponse.json({ error: "At least one order item is required." }, { status: 400 });
+    }
 
     const order_date = String(body.order_date ?? "").trim();
     if (!order_date) return NextResponse.json({ error: "Order date is required." }, { status: 400 });
@@ -56,35 +64,58 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const customer_name = String(body.customer_name ?? "").trim();
     if (!customer_name) return NextResponse.json({ error: "Customer name is required." }, { status: 400 });
 
-    const { data: design, error: designErr } = await supabase
+    // Validate all items have valid designs
+    const designIds = items.map((i) => i.cost_design_id).filter(Boolean);
+    const { data: designs, error: designsErr } = await supabase
       .from("cost_designs")
       .select("id, keychain_design, total_cost_price, shipping")
-      .eq("id", cost_design_id)
-      .maybeSingle();
-    if (designErr || !design) return NextResponse.json({ error: "Selected design was not found." }, { status: 400 });
+      .in("id", designIds);
 
-    const designTotal = num(design.total_cost_price);
-    const designShipping = num(design.shipping);
+    if (designsErr) return NextResponse.json({ error: designsErr.message }, { status: 500 });
+
+    const designMap = new Map((designs ?? []).map((d) => [d.id as string, d]));
     const exclude_shipping_from_cost = Boolean(body.exclude_shipping_from_cost);
-    const total_cost_price = exclude_shipping_from_cost
-      ? Math.max(0, designTotal - designShipping)
-      : designTotal;
-    const selling_price = num(body.selling_price);
-    const net_profit = selling_price - total_cost_price;
-    const units = Math.max(1, Math.floor(num(body.units, 1)));
 
+    // Calculate totals and prepare items
+    let grandTotalCost = 0;
+    let grandTotalSelling = 0;
+    const proposedItems = items.map((item) => {
+      const design = designMap.get(item.cost_design_id);
+      if (!design) throw new Error(`Design ${item.cost_design_id} not found`);
+
+      const designTotal = num(design.total_cost_price);
+      const designShipping = num(design.shipping);
+      const unitCostPrice = exclude_shipping_from_cost
+        ? Math.max(0, designTotal - designShipping)
+        : designTotal;
+      const unitSellingPrice = num(item.unit_selling_price);
+      const quantity = Math.max(1, Math.floor(num(item.quantity, 1)));
+
+      grandTotalCost += unitCostPrice * quantity;
+      grandTotalSelling += unitSellingPrice * quantity;
+
+      return {
+        cost_design_id: item.cost_design_id,
+        design_name: design.keychain_design,
+        quantity,
+        unit_cost_price: unitCostPrice,
+        unit_selling_price: unitSellingPrice,
+      };
+    });
+
+    const net_profit = grandTotalSelling - grandTotalCost;
+
+    // Build proposed snapshot with items
     const proposed_snapshot = {
       order_uid: String((orderRow as { order_uid?: string }).order_uid ?? ""),
       order_date,
-      cost_design_id: design.id as string,
-      design_name: String(design.keychain_design ?? ""),
       customer_name,
       customer_phone: String(body.customer_phone ?? "").trim(),
       shipment_tracking: String(body.shipment_tracking ?? "").trim(),
       shipping_address: String(body.shipping_address ?? "").trim(),
       actual_weight_g: num(body.actual_weight_g),
-      total_cost_price,
-      selling_price,
+      total_cost_price: grandTotalCost,
+      selling_price: grandTotalSelling,
       net_profit,
       payment_method: String(body.payment_method ?? "").trim() || "Other",
       payment_status: String(body.payment_status ?? "").trim() || "Pending",
@@ -93,7 +124,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       feedback: String(body.feedback ?? "").trim(),
       customer_behaviour: String(body.customer_behaviour ?? "").trim(),
       exclude_shipping_from_cost,
-      units,
+      items: proposedItems,
+      // Legacy fields for backward compatibility
+      cost_design_id: proposedItems[0]?.cost_design_id || null,
+      design_name: proposedItems[0]?.design_name || "",
+      units: proposedItems[0]?.quantity || 1,
     };
 
     const previous_snapshot = orderSnapshotFromRow(orderRow as Record<string, unknown>);
@@ -121,17 +156,18 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     }
 
     const money = (n: number) => (Number.isFinite(n) ? n.toFixed(2) : "0.00");
+    const itemsDesc = proposedItems.map((i) => `${i.design_name} ×${i.quantity}`).join(", ");
     await insertAuditLog(
       user.username,
       "SUBMIT_ORDER_EDIT_REQUEST",
-      `Edit request for order ${proposed_snapshot.order_uid} — total ₹${money(previous_snapshot.total_cost_price)} → ₹${money(proposed_snapshot.total_cost_price)} (pending approval)`,
+      `Edit request for order ${proposed_snapshot.order_uid} — items: ${itemsDesc} — total ₹${money(previous_snapshot.total_cost_price)} → ₹${money(proposed_snapshot.total_cost_price)} (pending approval)`,
     );
 
     if (user.role !== "admin") {
       const open = `${appBaseUrl()}/?nav=orderApprovals`;
       void notifyAdminsPendingApproval({
         subject: `Order edit pending: ${proposed_snapshot.order_uid}`,
-        htmlBody: `<p><strong>${user.username}</strong> requested changes to order <strong>${proposed_snapshot.order_uid}</strong> (${proposed_snapshot.customer_name}).</p><p>Total cost: ₹${money(previous_snapshot.total_cost_price)} → ₹${money(proposed_snapshot.total_cost_price)}.</p><p><a href="${open}">Open Order approvals</a></p>`,
+        htmlBody: `<p><strong>${user.username}</strong> requested changes to order <strong>${proposed_snapshot.order_uid}</strong> (${proposed_snapshot.customer_name}).</p><p>Items: ${itemsDesc}</p><p>Total cost: ₹${money(previous_snapshot.total_cost_price)} → ₹${money(proposed_snapshot.total_cost_price)}.</p><p><a href="${open}">Open Order approvals</a></p>`,
         kind: "order_edit",
         nav: "orderApprovals",
       }).catch(() => {});

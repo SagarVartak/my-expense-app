@@ -10,7 +10,7 @@ export async function GET() {
     const supabase = getServerSupabase();
     let q = supabase.from("order_ledger_change_requests").select("*").order("created_at", { ascending: false }).limit(150);
 
-    if (user.role !== "admin") {
+    if (!["admin", "manager"].includes(user.role)) {
       q = q.eq("requested_by", user.username);
     }
 

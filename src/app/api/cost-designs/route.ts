@@ -39,6 +39,7 @@ export async function POST(req: Request) {
     const primer_cost = num(body.primer_cost);
     const clearcoat_cost = num(body.clearcoat_cost);
     const key_caps_cost = num(body.key_caps_cost);
+    const colour_cost = num(body.colour_cost);
     const shipping = num(body.shipping);
 
     const total_cost_price = computeTotalCostPrice({
@@ -51,6 +52,7 @@ export async function POST(req: Request) {
       primer_cost,
       clearcoat_cost,
       key_caps_cost,
+      colour_cost,
       shipping,
     });
 
@@ -66,6 +68,7 @@ export async function POST(req: Request) {
       primer_cost,
       clearcoat_cost,
       key_caps_cost,
+      colour_cost,
       shipping,
       total_cost_price,
       selling_price: 0,
@@ -96,6 +99,7 @@ export async function POST(req: Request) {
           primer_cost: Number(data.primer_cost),
           clearcoat_cost: Number(data.clearcoat_cost),
           key_caps_cost: Number(data.key_caps_cost ?? 0),
+          colour_cost: Number(data.colour_cost ?? 0),
           shipping: Number(data.shipping),
           total_cost_price: Number(data.total_cost_price),
           created_at: data.created_at as string | null | undefined,

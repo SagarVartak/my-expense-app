@@ -24,7 +24,7 @@ export async function POST(req: Request) {
   const body = await req.json();
   const username = String(body.username || "").trim().toLowerCase();
   const emailRaw = String(body.email || "").trim().toLowerCase();
-  const role = body.role === "admin" ? "admin" : "member";
+  const role = body.role === "admin" ? "admin" : body.role === "manager" ? "manager" : "member";
 
   if (!username) {
     return NextResponse.json({ error: "Username is required." }, { status: 400 });

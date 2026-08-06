@@ -1,4 +1,4 @@
-export type Role = "admin" | "member";
+export type Role = "admin" | "manager" | "member";
 
 export type SessionUser = {
   username: string;
@@ -78,6 +78,8 @@ export type CostDesign = {
   clearcoat_cost: number;
   /** Present after migration_cost_designs_key_caps.sql; treat missing as 0. */
   key_caps_cost?: number;
+  /** Colour cost for coloured keychains; added via migration_manager_colour_multikey.sql */
+  colour_cost?: number;
   shipping: number;
   total_cost_price: number;
 };
@@ -95,6 +97,7 @@ export type CostDesignSnapshotJson = {
   primer_cost: number;
   clearcoat_cost: number;
   key_caps_cost: number;
+  colour_cost: number;
   shipping: number;
   total_cost_price: number;
 };
@@ -117,7 +120,9 @@ export type OrderApprovalStatus = "pending" | "approved" | "rejected";
 export type OrderLedgerSnapshotJson = {
   order_uid: string;
   order_date: string;
+  /** @deprecated Use items instead for multi-design orders */
   cost_design_id: string | null;
+  /** @deprecated Use items instead for multi-design orders */
   design_name: string;
   customer_name: string;
   customer_phone: string;
@@ -133,9 +138,20 @@ export type OrderLedgerSnapshotJson = {
   source: string;
   feedback: string;
   customer_behaviour: string;
+  /** When true, design shipping was not counted in total_cost_price / net_profit for this order. */
   exclude_shipping_from_cost: boolean;
-  /** Units sold / fulfilled; used for inventory when the order is approved. */
+  /** @deprecated Use items instead for multi-design orders */
   units: number;
+  /** New: line items for multi-design orders */
+  items?: OrderLedgerItemSnapshot[];
+};
+
+export type OrderLedgerItemSnapshot = {
+  cost_design_id: string;
+  design_name: string;
+  quantity: number;
+  unit_cost_price: number;
+  unit_selling_price: number;
 };
 
 export type OrderLedgerEntry = {
@@ -144,7 +160,9 @@ export type OrderLedgerEntry = {
   created_by: string;
   order_uid: string;
   order_date: string;
+  /** @deprecated Use items instead for multi-design orders */
   cost_design_id: string | null;
+  /** @deprecated Use items instead for multi-design orders */
   design_name: string;
   customer_name: string;
   customer_phone?: string;
@@ -163,8 +181,10 @@ export type OrderLedgerEntry = {
   /** When true, design shipping was not counted in total_cost_price / net_profit for this order. */
   exclude_shipping_from_cost?: boolean;
   approval_status?: OrderApprovalStatus;
-  /** Units per order; defaults to 1 if column not yet migrated. */
+  /** @deprecated Use items instead for multi-design orders */
   units?: number;
+  /** New: line items for multi-design orders */
+  items?: OrderLedgerItem[];
 };
 
 export type OrderLedgerChangeRequest = {
@@ -178,6 +198,19 @@ export type OrderLedgerChangeRequest = {
   reject_reason: string;
   previous_snapshot: OrderLedgerSnapshotJson;
   proposed_snapshot: OrderLedgerSnapshotJson;
+};
+
+export type OrderLedgerItem = {
+  id: string;
+  order_id: string;
+  cost_design_id: string;
+  quantity: number;
+  unit_cost_price: number;
+  unit_selling_price: number;
+  created_at: string;
+  /** Joined fields from cost_designs */
+  keychain_design?: string;
+  design_total_cost_price?: number;
 };
 
 export type DeletionResourceType = "expense" | "cost_design" | "order_ledger";

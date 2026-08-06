@@ -159,6 +159,7 @@ export default function SavedCostDesignsTable({
               <th className="amt">Primer cost</th>
               <th className="amt">Clearcoat cost</th>
               <th className="amt">Key caps</th>
+              <th className="amt">Colour cost</th>
               <th className="amt">Shipping</th>
               <th className="amt">Total cost price</th>
               <th>Saved by</th>
@@ -169,13 +170,13 @@ export default function SavedCostDesignsTable({
           <tbody>
             {loadingList && !hasLoadedOnce.current ? (
               <tr>
-                <td colSpan={15} className="muted">
+                <td colSpan={16} className="muted">
                   Loading saved designs…
                 </td>
               </tr>
             ) : designs.length === 0 ? (
               <tr>
-                <td colSpan={15} className="muted">
+                <td colSpan={16} className="muted">
                   {emptyHint}
                 </td>
               </tr>
@@ -194,6 +195,7 @@ export default function SavedCostDesignsTable({
                   <td className="amt">{fmtCurrency(currencySymbol, Number(d.primer_cost))}</td>
                   <td className="amt">{fmtCurrency(currencySymbol, Number(d.clearcoat_cost))}</td>
                   <td className="amt">{fmtCurrency(currencySymbol, Number(d.key_caps_cost ?? 0))}</td>
+                  <td className="amt">{fmtCurrency(currencySymbol, Number(d.colour_cost ?? 0))}</td>
                   <td className="amt">{fmtCurrency(currencySymbol, Number(d.shipping))}</td>
                   <td className="amt">{fmtCurrency(currencySymbol, Number(d.total_cost_price))}</td>
                   <td className="muted" style={{ whiteSpace: "nowrap" }}>

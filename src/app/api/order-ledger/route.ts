@@ -14,31 +14,66 @@ function num(v: unknown, def = 0): number {
 
 type OrderInsertRow = Record<string, unknown>;
 
+async function fetchOrdersWithItems(supabase: ReturnType<typeof getServerSupabase>, userRole: string, username: string) {
+  // First fetch all orders
+  const { data: ordersData, error: ordersError } = await supabase
+    .from("order_ledger")
+    .select("*")
+    .order("order_date", { ascending: false })
+    .order("created_at", { ascending: false });
+
+  if (ordersError) return { orders: null, error: ordersError };
+
+  const orderRows = (ordersData ?? []) as Record<string, unknown>[];
+
+  // Filter based on user role
+  const isAdminOrManager = userRole === "admin" || userRole === "manager";
+  const filteredOrders = isAdminOrManager
+    ? orderRows
+    : orderRows.filter((o) => {
+        const st = String(o.approval_status ?? "approved");
+        if (st === "approved") return true;
+        if (o.created_by === username && (st === "pending" || st === "rejected")) return true;
+        return false;
+      });
+
+  // Fetch items for these orders
+  const orderIds = filteredOrders.map((o) => o.id as string);
+  let itemsMap = new Map<string, unknown[]>();
+
+  if (orderIds.length > 0) {
+    const { data: itemsData, error: itemsError } = await supabase
+      .from("order_ledger_items")
+      .select("*")
+      .in("order_id", orderIds);
+
+    if (!itemsError && itemsData) {
+      for (const item of itemsData) {
+        const orderId = item.order_id as string;
+        if (!itemsMap.has(orderId)) itemsMap.set(orderId, []);
+        itemsMap.get(orderId)!.push(item);
+      }
+    }
+  }
+
+  // Merge items into orders
+  const ordersWithItems = filteredOrders.map((order) => ({
+    ...order,
+    items: itemsMap.get(order.id as string) || [],
+  }));
+
+  return { orders: ordersWithItems, error: null };
+}
+
 export async function GET() {
   const user = await getSessionUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
     const supabase = getServerSupabase();
-    const { data, error } = await supabase
-      .from("order_ledger")
-      .select("*")
-      .order("order_date", { ascending: false })
-      .order("created_at", { ascending: false });
+    const { orders, error } = await fetchOrdersWithItems(supabase, user.role, user.username);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-
-    const rows = (data ?? []) as Record<string, unknown>[];
-    if (user.role === "admin") {
-      return NextResponse.json({ orders: rows });
-    }
-
-    const filtered = rows.filter((o) => {
-      const st = String(o.approval_status ?? "approved");
-      if (st === "approved") return true;
-      if (o.created_by === user.username && (st === "pending" || st === "rejected")) return true;
-      return false;
-    });
-    return NextResponse.json({ orders: filtered });
+    return NextResponse.json({ orders: orders ?? [] });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });
   }
@@ -50,49 +85,75 @@ export async function POST(req: Request) {
 
   try {
     const body = await req.json();
-    const cost_design_id = String(body.cost_design_id ?? "").trim();
-    if (!cost_design_id) {
-      return NextResponse.json({ error: "Select a saved design." }, { status: 400 });
-    }
-
     const order_date = String(body.order_date ?? "").trim();
     if (!order_date) return NextResponse.json({ error: "Order date is required." }, { status: 400 });
 
     const customer_name = String(body.customer_name ?? "").trim();
     if (!customer_name) return NextResponse.json({ error: "Customer name is required." }, { status: 400 });
 
-    const supabase = getServerSupabase();
-    const { data: design, error: designErr } = await supabase
-      .from("cost_designs")
-      .select("id, keychain_design, total_cost_price, shipping")
-      .eq("id", cost_design_id)
-      .maybeSingle();
-    if (designErr || !design) {
-      return NextResponse.json({ error: "Selected design was not found." }, { status: 400 });
+    const items = body.items as Array<{
+      cost_design_id: string;
+      quantity: number;
+      unit_cost_price: number;
+      unit_selling_price: number;
+    }> | undefined;
+
+    if (!items || items.length === 0) {
+      return NextResponse.json({ error: "At least one order item is required." }, { status: 400 });
     }
 
-    const designTotal = num(design.total_cost_price);
-    const designShipping = num(design.shipping);
-    const exclude_shipping_from_cost = Boolean(body.exclude_shipping_from_cost);
-    const total_cost_price = exclude_shipping_from_cost
-      ? Math.max(0, designTotal - designShipping)
-      : designTotal;
-    const selling_price = num(body.selling_price);
-    const net_profit = selling_price - total_cost_price;
-    const units = Math.max(1, Math.floor(num(body.units, 1)));
+    // Validate all items have valid designs
+    const supabase = getServerSupabase();
+    const designIds = items.map((i) => i.cost_design_id).filter(Boolean);
+    const { data: designs, error: designsErr } = await supabase
+      .from("cost_designs")
+      .select("id, keychain_design, total_cost_price, shipping")
+      .in("id", designIds);
 
+    if (designsErr) return NextResponse.json({ error: designsErr.message }, { status: 500 });
+
+    const designMap = new Map((designs ?? []).map((d) => [d.id as string, d]));
+    const exclude_shipping_from_cost = Boolean(body.exclude_shipping_from_cost);
+
+    // Calculate totals
+    let grandTotalCost = 0;
+    let grandTotalSelling = 0;
+    const orderItemsForInsert = items.map((item) => {
+      const design = designMap.get(item.cost_design_id);
+      if (!design) throw new Error(`Design ${item.cost_design_id} not found`);
+
+      const designTotal = num(design.total_cost_price);
+      const designShipping = num(design.shipping);
+      const unitCostPrice = exclude_shipping_from_cost
+        ? Math.max(0, designTotal - designShipping)
+        : designTotal;
+      const unitSellingPrice = num(item.unit_selling_price);
+      const quantity = Math.max(1, Math.floor(num(item.quantity, 1)));
+
+      grandTotalCost += unitCostPrice * quantity;
+      grandTotalSelling += unitSellingPrice * quantity;
+
+      return {
+        cost_design_id: item.cost_design_id,
+        quantity,
+        unit_cost_price: unitCostPrice,
+        unit_selling_price: unitSellingPrice,
+      };
+    });
+
+    const net_profit = grandTotalSelling - grandTotalCost;
+
+    // Insert order
     const row: OrderInsertRow = {
       order_uid: generateOrderUid(),
       order_date,
-      cost_design_id: design.id,
-      design_name: String(design.keychain_design ?? ""),
       customer_name,
       customer_phone: String(body.customer_phone ?? "").trim(),
       shipment_tracking: String(body.shipment_tracking ?? "").trim(),
       shipping_address: String(body.shipping_address ?? "").trim(),
       actual_weight_g: num(body.actual_weight_g),
-      total_cost_price,
-      selling_price,
+      total_cost_price: grandTotalCost,
+      selling_price: grandTotalSelling,
       net_profit,
       payment_method: String(body.payment_method ?? "").trim() || "Other",
       payment_status: String(body.payment_status ?? "").trim() || "Pending",
@@ -103,31 +164,54 @@ export async function POST(req: Request) {
       exclude_shipping_from_cost,
       created_by: user.username,
       approval_status: "pending",
-      units,
+      // Legacy fields for backward compatibility - use first item
+      cost_design_id: orderItemsForInsert[0]?.cost_design_id || null,
+      design_name: designMap.get(orderItemsForInsert[0]?.cost_design_id || "")?.keychain_design || "",
+      units: orderItemsForInsert[0]?.quantity || 1,
     };
 
     const inserted = await insertOrderLedgerWithSchemaFallback(supabase, row, generateOrderUid);
-    const { data, error } = inserted;
+    const { data: order, error } = inserted;
     if (error) return NextResponse.json({ error: String((error as { message?: string }).message ?? error) }, { status: 500 });
 
+    // Insert order items
+    if (order && order.id) {
+      const itemsToInsert = orderItemsForInsert.map((item) => ({
+        order_id: order.id,
+        ...item,
+      }));
+
+      const { error: itemsError } = await supabase.from("order_ledger_items").insert(itemsToInsert);
+      if (itemsError) {
+        // Rollback order if items fail
+        await supabase.from("order_ledger").delete().eq("id", order.id);
+        return NextResponse.json({ error: `Failed to save order items: ${itemsError.message}` }, { status: 500 });
+      }
+    }
+
     const exclude_shipping_from_cost_eff = Boolean(body.exclude_shipping_from_cost);
-    const orderOut = data
+    const orderOut = order
       ? {
-          ...data,
+          ...order,
           exclude_shipping_from_cost:
-            typeof data.exclude_shipping_from_cost === "boolean"
-              ? data.exclude_shipping_from_cost
+            typeof order.exclude_shipping_from_cost === "boolean"
+              ? order.exclude_shipping_from_cost
               : exclude_shipping_from_cost_eff,
-          approval_status: (data as { approval_status?: string }).approval_status ?? "pending",
+          approval_status: (order as { approval_status?: string }).approval_status ?? "pending",
+          items: orderItemsForInsert,
         }
-      : data;
+      : order;
 
     const money = (n: number) => (Number.isFinite(n) ? n.toFixed(2) : "0.00");
-    const shipNote = exclude_shipping_from_cost ? ` — shipping fee (${money(designShipping)}) excluded from cost` : "";
+    const itemsDesc = items.map((i) => {
+      const d = designMap.get(i.cost_design_id);
+      return `${d?.keychain_design || "?"} ×${i.quantity}`;
+    }).join(", ");
+    const shipNote = exclude_shipping_from_cost ? " — shipping fees excluded from cost" : "";
     await insertAuditLog(
       user.username,
       "SUBMIT_ORDER_LEDGER",
-      `Order ${(orderOut as { order_uid?: string })?.order_uid ?? ""} — ${customer_name} — design "${row.design_name}" — sell ₹${money(selling_price)} — cost ₹${money(total_cost_price)} — net ₹${money(net_profit)} — payment ${row.payment_method} (${row.payment_status}) — delivery ${row.delivery_status}${shipNote} — pending admin approval`,
+      `Order ${(orderOut as { order_uid?: string })?.order_uid ?? ""} — ${customer_name} — items: ${itemsDesc} — sell ${money(grandTotalSelling)} — cost ${money(grandTotalCost)} — net ${money(net_profit)} — payment ${row.payment_method} (${row.payment_status}) — delivery ${row.delivery_status}${shipNote} — pending admin approval`,
     );
 
     if (user.role !== "admin") {

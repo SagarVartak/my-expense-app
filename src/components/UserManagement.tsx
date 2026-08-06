@@ -155,6 +155,7 @@ export default function UserManagement({ users, onCreate, onToggleActive }: Prop
           <label htmlFor="newUserRole">Role</label>
           <select id="newUserRole" value={role} onChange={(e) => setRole(e.target.value as Role)}>
             <option value="member">member</option>
+            <option value="manager">manager</option>
             <option value="admin">admin</option>
           </select>
         </div>

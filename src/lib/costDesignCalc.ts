@@ -14,6 +14,7 @@ export function computeTotalCostPrice(input: {
   primer_cost: number;
   clearcoat_cost: number;
   key_caps_cost: number;
+  colour_cost: number;
   shipping: number;
 }): number {
   const filamentLine = input.print_weight_g * input.filament_cost_per_g;
@@ -26,6 +27,7 @@ export function computeTotalCostPrice(input: {
     input.primer_cost +
     input.clearcoat_cost +
     input.key_caps_cost +
+    input.colour_cost +
     input.shipping
   );
 }

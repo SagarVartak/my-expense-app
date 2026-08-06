@@ -33,6 +33,7 @@ export default function EditCostDesignModal({ open, design, currencySymbol, onCl
   const [primerCost, setPrimerCost] = useState("");
   const [clearcoatCost, setClearcoatCost] = useState("");
   const [keyCapsCost, setKeyCapsCost] = useState("");
+  const [colourCost, setColourCost] = useState("");
   const [shipping, setShipping] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -63,6 +64,7 @@ export default function EditCostDesignModal({ open, design, currencySymbol, onCl
     setPrimerCost(String(design.primer_cost ?? ""));
     setClearcoatCost(String(design.clearcoat_cost ?? ""));
     setKeyCapsCost(String(design.key_caps_cost ?? ""));
+    setColourCost(String(design.colour_cost ?? ""));
     setShipping(String(design.shipping ?? ""));
   }, [open, design]);
 
@@ -92,9 +94,10 @@ export default function EditCostDesignModal({ open, design, currencySymbol, onCl
         primer_cost: parseN(primerCost),
         clearcoat_cost: parseN(clearcoatCost),
         key_caps_cost: parseN(keyCapsCost),
+        colour_cost: parseN(colourCost),
         shipping: parseN(shipping),
       }),
-    [printWeightG, filamentCostPerG, electricityFee, chainCost, pouchCost, cardCost, primerCost, clearcoatCost, keyCapsCost, shipping],
+    [printWeightG, filamentCostPerG, electricityFee, chainCost, pouchCost, cardCost, primerCost, clearcoatCost, keyCapsCost, colourCost, shipping],
   );
 
   const fmt = (n: number) => fmtCurrency(currencySymbol, n);
@@ -122,6 +125,7 @@ export default function EditCostDesignModal({ open, design, currencySymbol, onCl
           primer_cost: parseN(primerCost),
           clearcoat_cost: parseN(clearcoatCost),
           key_caps_cost: parseN(keyCapsCost),
+          colour_cost: parseN(colourCost),
           shipping: parseN(shipping),
         }),
       });
@@ -226,6 +230,14 @@ export default function EditCostDesignModal({ open, design, currencySymbol, onCl
             <label htmlFor="ecd-keycaps">Key caps</label>
             <DecimalCostInput id="ecd-keycaps" value={keyCapsCost} onValueChange={setKeyCapsCost} />
           </div>
+        </div>
+        <div className="row3" style={{ marginTop: 10 }}>
+          <div>
+            <label htmlFor="ecd-colour">Colour cost</label>
+            <DecimalCostInput id="ecd-colour" value={colourCost} onValueChange={setColourCost} placeholder="0 (for coloured keychains)" />
+          </div>
+          <div aria-hidden />
+          <div aria-hidden />
         </div>
         <div className="row3" style={{ marginTop: 10 }}>
           <div className="span-row3">
