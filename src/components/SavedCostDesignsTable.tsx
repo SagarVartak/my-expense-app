@@ -5,6 +5,10 @@ import { toast } from "react-toastify";
 import EditCostDesignModal from "@/components/EditCostDesignModal";
 import { fmtCurrency } from "@/lib/currencyFormat";
 import type { CostDesign, SessionUser } from "@/lib/types";
+import { DataTable } from "@/components/ui/data-table";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { CellContext } from "@tanstack/react-table";
 
 function fmtShortDate(iso: string) {
   try {
@@ -19,15 +23,10 @@ function fmtShortDate(iso: string) {
 type Props = {
   currencySymbol: string;
   currentUser: SessionUser;
-  /** From header refresh (increment to reload). */
   refreshSignal: number;
-  /** When approvals / deletions change (pending-delete badges). */
   approvalSyncSignal?: number;
-  /** Increment when a design is saved from the calculator (reloads list). */
   saveBump?: number;
-  /** Called after a design is deleted (e.g. refresh admin audit log). */
   onCostDesignMutated?: () => void;
-  /** After a cost edit is submitted for admin approval (not yet applied). */
   onChangeRequestSubmitted?: () => void;
   emptyHint?: string;
 };
@@ -129,6 +128,118 @@ export default function SavedCostDesignsTable({
   const canDeleteRow = (createdBy: string) =>
     currentUser.role === "admin" || createdBy === currentUser.username;
 
+  const columns = [
+    {
+      accessorKey: "keychain_design",
+      header: "Keychain Design",
+      cell: (info: any) => (
+        <span className="design-name-cell" title={info.getValue()}>
+          {info.getValue()}
+        </span>
+      ),
+    },
+    {
+      accessorKey: "print_weight_g",
+      header: "Print Weight (g)",
+      cell: (info: any) => Number(info.getValue()).toFixed(2),
+    },
+    {
+      accessorKey: "filament_cost_per_g",
+      header: "Filament Cost/g",
+      cell: (info: any) => fmtCurrency(currencySymbol, Number(info.getValue())),
+    },
+    {
+      accessorKey: "electricity_fee",
+      header: "Electricity",
+      cell: (info: any) => fmtCurrency(currencySymbol, Number(info.getValue())),
+    },
+    {
+      accessorKey: "chain_cost",
+      header: "Chain",
+      cell: (info: any) => fmtCurrency(currencySymbol, Number(info.getValue())),
+    },
+    {
+      accessorKey: "pouch_cost",
+      header: "Pouch",
+      cell: (info: any) => fmtCurrency(currencySymbol, Number(info.getValue())),
+    },
+    {
+      accessorKey: "card_cost",
+      header: "Card",
+      cell: (info: any) => fmtCurrency(currencySymbol, Number(info.getValue())),
+    },
+    {
+      accessorKey: "primer_cost",
+      header: "Primer",
+      cell: (info: any) => fmtCurrency(currencySymbol, Number(info.getValue())),
+    },
+    {
+      accessorKey: "clearcoat_cost",
+      header: "Clearcoat",
+      cell: (info: any) => fmtCurrency(currencySymbol, Number(info.getValue())),
+    },
+    {
+      accessorKey: "key_caps_cost",
+      header: "Key Caps",
+      cell: (info: any) => fmtCurrency(currencySymbol, Number(info.getValue() ?? 0)),
+    },
+    {
+      accessorKey: "colour_cost",
+      header: "Colour",
+      cell: (info: any) => fmtCurrency(currencySymbol, Number(info.getValue() ?? 0)),
+    },
+    {
+      accessorKey: "shipping",
+      header: "Shipping",
+      cell: (info: any) => fmtCurrency(currencySymbol, Number(info.getValue())),
+    },
+    {
+      accessorKey: "total_cost_price",
+      header: "Total Cost",
+      cell: (info: any) => fmtCurrency(currencySymbol, Number(info.getValue())),
+    },
+    {
+      accessorKey: "created_by",
+      header: "Saved By",
+      cell: (info: any) => String(info.getValue()),
+    },
+    {
+      accessorKey: "created_at",
+      header: "Saved At",
+      cell: (info: any) => fmtShortDate(String(info.getValue())),
+    },
+    {
+      id: "actions",
+      header: "Action",
+      cell: (info: any) => {
+        const design = info.row.original;
+        const canDelete = canDeleteRow(design.created_by);
+        const isAdmin = currentUser.role === "admin";
+
+        return (
+          <div className="design-table-actions">
+            <Button variant="outline" size="sm" onClick={() => setEditing(design)}>
+              Edit
+            </Button>
+            {canDelete ? (
+              isAdmin ? (
+                <Button variant="destructive" size="sm" onClick={() => handleDelete(design.id)}>
+                  Delete
+                </Button>
+              ) : pendingDeletionIds.has(design.id) ? (
+                <span className="text-xs text-muted-foreground">Delete pending</span>
+              ) : (
+                <Button variant="destructive" size="sm" onClick={() => handleRequestDelete(design.id)}>
+                  Request Delete
+                </Button>
+              )
+            ) : null}
+          </div>
+        );
+      },
+    },
+  ];
+
   return (
     <section className="card">
       <EditCostDesignModal
@@ -145,93 +256,28 @@ export default function SavedCostDesignsTable({
       <p className="calc-lead muted" style={{ marginBottom: 12 }}>
         {loadingList && !hasLoadedOnce.current ? "Loading…" : `${designs.length} saved in the database.`}
       </p>
-      <div className="design-table-wrap">
-        <table className="design-table">
-          <thead>
-            <tr>
-              <th className="design-th-design">Keychain design</th>
-              <th className="amt">Print weight (g)</th>
-              <th className="amt">Filament cost per (g)</th>
-              <th className="amt">Electricity fee</th>
-              <th className="amt">Chain cost</th>
-              <th className="amt">Pouch cost</th>
-              <th className="amt">Card cost</th>
-              <th className="amt">Primer cost</th>
-              <th className="amt">Clearcoat cost</th>
-              <th className="amt">Key caps</th>
-              <th className="amt">Colour cost</th>
-              <th className="amt">Shipping</th>
-              <th className="amt">Total cost price</th>
-              <th>Saved by</th>
-              <th>Saved at</th>
-              <th className="design-th-action">Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loadingList && !hasLoadedOnce.current ? (
-              <tr>
-                <td colSpan={16} className="muted">
-                  Loading saved designs…
-                </td>
-              </tr>
-            ) : designs.length === 0 ? (
-              <tr>
-                <td colSpan={16} className="muted">
-                  {emptyHint}
-                </td>
-              </tr>
-            ) : (
-              designs.map((d) => (
-                <tr key={d.id}>
-                  <td style={{ maxWidth: 160 }} title={d.keychain_design}>
-                    <span className="design-name-cell">{d.keychain_design}</span>
-                  </td>
-                  <td className="amt">{Number(d.print_weight_g).toFixed(2)}</td>
-                  <td className="amt">{fmtCurrency(currencySymbol, Number(d.filament_cost_per_g))}</td>
-                  <td className="amt">{fmtCurrency(currencySymbol, Number(d.electricity_fee))}</td>
-                  <td className="amt">{fmtCurrency(currencySymbol, Number(d.chain_cost))}</td>
-                  <td className="amt">{fmtCurrency(currencySymbol, Number(d.pouch_cost))}</td>
-                  <td className="amt">{fmtCurrency(currencySymbol, Number(d.card_cost))}</td>
-                  <td className="amt">{fmtCurrency(currencySymbol, Number(d.primer_cost))}</td>
-                  <td className="amt">{fmtCurrency(currencySymbol, Number(d.clearcoat_cost))}</td>
-                  <td className="amt">{fmtCurrency(currencySymbol, Number(d.key_caps_cost ?? 0))}</td>
-                  <td className="amt">{fmtCurrency(currencySymbol, Number(d.colour_cost ?? 0))}</td>
-                  <td className="amt">{fmtCurrency(currencySymbol, Number(d.shipping))}</td>
-                  <td className="amt">{fmtCurrency(currencySymbol, Number(d.total_cost_price))}</td>
-                  <td className="muted" style={{ whiteSpace: "nowrap" }}>
-                    {d.created_by}
-                  </td>
-                  <td className="muted" style={{ fontSize: 11, whiteSpace: "nowrap" }}>
-                    {fmtShortDate(d.created_at)}
-                  </td>
-                  <td>
-                    <div className="design-table-actions">
-                      <button type="button" onClick={() => setEditing(d)}>
-                        Edit
-                      </button>
-                      {canDeleteRow(d.created_by) ? (
-                        currentUser.role === "admin" ? (
-                          <button className="delete" type="button" onClick={() => void handleDelete(d.id)}>
-                            Delete
-                          </button>
-                        ) : pendingDeletionIds.has(d.id) ? (
-                          <span className="muted" style={{ fontSize: 11 }}>
-                            Delete pending
-                          </span>
-                        ) : (
-                          <button className="delete" type="button" onClick={() => void handleRequestDelete(d.id)}>
-                            Request delete
-                          </button>
-                        )
-                      ) : null}
-                    </div>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+
+      <DataTable
+        columns={columns}
+        data={designs}
+        searchKey="global"
+        filterableColumns={["keychain_design", "created_by"]}
+        sortable
+        selectable={false}
+        pagination
+        pageSize={10}
+        className="w-full"
+        onRowClick={(design) => {
+          setEditing(design);
+        }}
+      />
+
+      {loadingList && !hasLoadedOnce.current && (
+        <div className="text-center py-8 text-muted-foreground">Loading saved designs…</div>
+      )}
+      {designs.length === 0 && !loadingList && (
+        <div className="text-center py-8 text-muted-foreground">{emptyHint}</div>
+      )}
     </section>
   );
 }
