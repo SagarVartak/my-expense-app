@@ -44,14 +44,25 @@ async function fetchOrdersWithItems(supabase: ReturnType<typeof getServerSupabas
   if (orderIds.length > 0) {
     const { data: itemsData, error: itemsError } = await supabase
       .from("order_ledger_items")
-      .select("*")
+      .select(`
+        *,
+        cost_designs!inner (
+          keychain_design
+        )
+      `)
       .in("order_id", orderIds);
 
     if (!itemsError && itemsData) {
       for (const item of itemsData) {
         const orderId = item.order_id as string;
         if (!itemsMap.has(orderId)) itemsMap.set(orderId, []);
-        itemsMap.get(orderId)!.push(item);
+        // Include keychain_design from joined cost_designs
+        const costDesigns = (item as Record<string, unknown>).cost_designs as { keychain_design?: string } | unknown;
+        const itemWithDesign = {
+          ...item,
+          keychain_design: (costDesigns as { keychain_design?: string })?.keychain_design ?? "",
+        };
+        itemsMap.get(orderId)!.push(itemWithDesign);
       }
     }
   }
