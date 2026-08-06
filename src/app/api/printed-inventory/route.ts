@@ -108,3 +108,55 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });
   }
 }
+
+export async function DELETE(req: Request) {
+  const user = await getSessionUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!["admin", "manager"].includes(user.role)) {
+    return NextResponse.json({ error: "Forbidden: admin or manager required" }, { status: 403 });
+  }
+
+  try {
+    const { searchParams } = new URL(req.url);
+    const cost_design_id = searchParams.get("cost_design_id");
+    if (!cost_design_id) {
+      return NextResponse.json({ error: "cost_design_id is required" }, { status: 400 });
+    }
+
+    const supabase = getServerSupabase();
+    
+    // Get design name for audit log
+    const { data: design } = await supabase
+      .from("cost_designs")
+      .select("keychain_design")
+      .eq("id", cost_design_id)
+      .maybeSingle();
+
+    const { data: entries, error: fetchErr } = await supabase
+      .from("printed_inventory_entries")
+      .select("id, quantity")
+      .eq("cost_design_id", cost_design_id);
+
+    if (fetchErr) return NextResponse.json({ error: fetchErr.message }, { status: 500 });
+
+    const totalQty = (entries ?? []).reduce((sum, e) => sum + (e.quantity || 0), 0);
+
+    const { error: delErr } = await supabase
+      .from("printed_inventory_entries")
+      .delete()
+      .eq("cost_design_id", cost_design_id);
+
+    if (delErr) return NextResponse.json({ error: delErr.message }, { status: 500 });
+
+    const label = design?.keychain_design || cost_design_id;
+    await insertAuditLog(
+      user.username,
+      "DELETE_PRINT_INVENTORY",
+      `Deleted all inventory entries for "${label}" (${entries?.length || 0} entries, total ${totalQty} units)`,
+    );
+
+    return NextResponse.json({ ok: true, deletedEntries: entries?.length || 0, totalQty });
+  } catch (e) {
+    return NextResponse.json({ error: (e as Error).message }, { status: 500 });
+  }
+}
