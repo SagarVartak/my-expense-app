@@ -4,10 +4,15 @@ import { getSessionUser } from "@/lib/auth";
 import { notifyDiscordOrderLedgerAdded } from "@/lib/discordWebhook";
 import { getServerSupabase } from "@/lib/serverSupabase";
 
+function num(v: unknown, def = 0): number {
+  const n = typeof v === "number" ? v : parseFloat(String(v ?? ""));
+  return Number.isFinite(n) ? n : def;
+}
+
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const user = await getSessionUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (user.role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!["admin", "manager"].includes(user.role)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const { id } = await params;
   if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 });
@@ -60,34 +65,80 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       return NextResponse.json({ order: updated });
     }
 
-    const costDesignId = (row as { cost_design_id?: string | null }).cost_design_id;
-    const units = Math.max(1, Math.floor(Number((row as { units?: number }).units ?? 1)));
-    if (costDesignId) {
-      const { error: invErr } = await supabase.from("printed_inventory_entries").insert({
-        cost_design_id: costDesignId,
-        quantity: -units,
-        printer_name: `Order ${uid}`,
-        created_by: user.username,
-        order_id: id,
-      });
-      if (invErr) {
-        await supabase.from("order_ledger").update({ approval_status: "pending" }).eq("id", id);
-        if (/printed_inventory|quantity|order_id|schema cache/i.test(invErr.message)) {
-          return NextResponse.json(
-            {
-              error: `Inventory update failed (${invErr.message}). Run migration_order_units_inventory_deduction.sql if not applied.`,
-            },
-            { status: 500 },
-          );
+    // Approve: fetch order items and deduct inventory for each
+    const { data: items, error: itemsErr } = await supabase
+      .from("order_ledger_items")
+      .select("*")
+      .eq("order_id", id);
+
+    if (itemsErr) {
+      await supabase.from("order_ledger").update({ approval_status: "pending" }).eq("id", id);
+      return NextResponse.json({ error: itemsErr.message }, { status: 500 });
+    }
+
+    const itemList = (items ?? []) as Array<{
+      cost_design_id: string;
+      quantity: number;
+    }>;
+
+    if (itemList.length === 0) {
+      // Fallback to legacy single-design fields
+      const costDesignId = (row as { cost_design_id?: string | null }).cost_design_id;
+      const units = Math.max(1, Math.floor(Number((row as { units?: number }).units ?? 1)));
+      if (costDesignId) {
+        const { error: invErr } = await supabase.from("printed_inventory_entries").insert({
+          cost_design_id: costDesignId,
+          quantity: -units,
+          printer_name: `Order ${uid}`,
+          created_by: user.username,
+          order_id: id,
+        });
+        if (invErr) {
+          await supabase.from("order_ledger").update({ approval_status: "pending" }).eq("id", id);
+          if (/printed_inventory|quantity|order_id|schema cache/i.test(invErr.message)) {
+            return NextResponse.json(
+              {
+                error: `Inventory update failed (${invErr.message}). Run migration_order_units_inventory_deduction.sql if not applied.`,
+              },
+              { status: 500 },
+            );
+          }
+          return NextResponse.json({ error: invErr.message }, { status: 500 });
         }
-        return NextResponse.json({ error: invErr.message }, { status: 500 });
+      }
+    } else {
+      // Deduct inventory for each item
+      for (const item of itemList) {
+        const { error: invErr } = await supabase.from("printed_inventory_entries").insert({
+          cost_design_id: item.cost_design_id,
+          quantity: -item.quantity,
+          printer_name: `Order ${uid}`,
+          created_by: user.username,
+          order_id: id,
+        });
+        if (invErr) {
+          await supabase.from("order_ledger").update({ approval_status: "pending" }).eq("id", id);
+          if (/printed_inventory|quantity|order_id|schema cache/i.test(invErr.message)) {
+            return NextResponse.json(
+              {
+                error: `Inventory update failed (${invErr.message}). Run migration_order_units_inventory_deduction.sql if not applied.`,
+              },
+              { status: 500 },
+            );
+          }
+          return NextResponse.json({ error: invErr.message }, { status: 500 });
+        }
       }
     }
+
+    const itemsDesc = itemList.length > 0
+      ? itemList.map((i) => `${i.cost_design_id} ×${i.quantity}`).join(", ")
+      : `legacy single-design ×${Math.max(1, Math.floor(Number((row as { units?: number }).units ?? 1)))}`;
 
     await insertAuditLog(
       user.username,
       "APPROVE_ORDER_LEDGER",
-      `Approved new order ${uid} — ${cust} — net ₹${money(Number((row as { net_profit?: number }).net_profit))} — inventory −${units} for design`,
+      `Approved new order ${uid} — ${cust} — net ₹${money(Number((row as { net_profit?: number }).net_profit))} — inventory deducted for: ${itemsDesc}`,
     );
 
     if (updated) {

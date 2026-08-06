@@ -121,7 +121,7 @@ export default function OrdersTable({
     }
   };
 
-  const colSpan = 20;
+  const colSpan = 21;
 
   return (
     <section className="card">
@@ -148,7 +148,8 @@ export default function OrdersTable({
               <th>Order ID</th>
               <th>Approval</th>
               <th>Date</th>
-              <th>Design</th>
+              <th>Items</th>
+              <th>Total Qty</th>
               <th>Customer name</th>
               <th>Phone</th>
               <th>Tracking #</th>
@@ -156,7 +157,7 @@ export default function OrdersTable({
               <th className="amt">Actual weight (g)</th>
               <th className="amt">Total cost price</th>
               <th>Ship in cost</th>
-              <th className="amt">Selling price</th>
+              <th className="amt">Total selling price</th>
               <th className="amt">Net profit</th>
               <th>Payment method</th>
               <th>Payment status</th>
@@ -181,9 +182,24 @@ export default function OrdersTable({
                 </td>
               </tr>
             ) : (
-              orders.map((o) => {
+orders.map((o) => {
                 const st = o.approval_status ?? "approved";
                 const isOwner = o.created_by === currentUser.username;
+                const items = o.items ?? [];
+                const totalQty = items.reduce((sum, item) => sum + (item.quantity ?? 0), 0);
+                const itemsDisplay = items.length > 0
+                  ? items.map((item) => (
+                      <div key={item.id} style={{ fontSize: 11, display: "flex", alignItems: "center", gap: 4 }}>
+                        <span>{item.keychain_design || "—"}</span>
+                        <span className="muted">×{item.quantity}</span>
+                        {item.unit_selling_price != null && (
+                          <span className="muted">@ {fmtOrderMoney(currencySymbol, item.unit_selling_price)}</span>
+                        )}
+                      </div>
+                    ))
+                  : o.design_name
+                    ? <span className="design-name-cell" title={o.design_name}>{o.design_name}</span>
+                    : <span className="muted">—</span>;
                 return (
                   <tr key={o.id}>
                     <td className="muted" style={{ fontSize: 12, whiteSpace: "nowrap" }}>
@@ -196,8 +212,8 @@ export default function OrdersTable({
                           st === "pending"
                             ? { borderColor: "rgba(240, 180, 41, 0.45)", color: "#f0d090" }
                             : st === "rejected"
-                              ? { borderColor: "rgba(255, 120, 140, 0.4)", color: "#ffb0c0" }
-                              : undefined
+                            ? { borderColor: "rgba(255, 120, 140, 0.4)", color: "#ffb0c0" }
+                            : undefined
                         }
                         title={approvalLabel(o)}
                       >
@@ -205,8 +221,11 @@ export default function OrdersTable({
                       </span>
                     </td>
                     <td>{fmtOrderDate(o.order_date)}</td>
-                    <td style={{ maxWidth: 140 }} title={o.design_name}>
-                      <span className="design-name-cell">{o.design_name || "—"}</span>
+                    <td style={{ maxWidth: 200 }}>
+                      {itemsDisplay}
+                    </td>
+                    <td className="amt" style={{ fontSize: 12 }}>
+                      {totalQty}
                     </td>
                     <td>{o.customer_name}</td>
                     <td className="order-td-wrap" style={{ maxWidth: 120, fontSize: 12 }}>
@@ -220,7 +239,7 @@ export default function OrdersTable({
                     </td>
                     <td className="amt">{Number(o.actual_weight_g).toFixed(2)}</td>
                     <td className="amt">{fmtOrderMoney(currencySymbol, Number(o.total_cost_price))}</td>
-                    <td style={{ fontSize: 12 }} title="Whether the saved design’s shipping line was included in cost">
+                    <td style={{ fontSize: 12 }} title="Whether the saved design's shipping line was included in cost">
                       {o.exclude_shipping_from_cost === true ? (
                         <span className="muted">Waived</span>
                       ) : (

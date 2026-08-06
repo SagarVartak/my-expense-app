@@ -1,6 +1,7 @@
-import type { OrderLedgerSnapshotJson } from "@/lib/types";
+import type { OrderLedgerSnapshotJson, OrderLedgerItemSnapshot } from "@/lib/types";
 
 export function orderSnapshotFromRow(r: Record<string, unknown>): OrderLedgerSnapshotJson {
+  const items = r.items as OrderLedgerItemSnapshot[] | undefined;
   return {
     order_uid: String(r.order_uid ?? ""),
     order_date: String(r.order_date ?? "").slice(0, 10),
@@ -22,6 +23,7 @@ export function orderSnapshotFromRow(r: Record<string, unknown>): OrderLedgerSna
     customer_behaviour: String(r.customer_behaviour ?? ""),
     exclude_shipping_from_cost: Boolean(r.exclude_shipping_from_cost),
     units: Math.max(1, Math.floor(Number(r.units ?? 1))),
+    items: items || [],
   };
 }
 
@@ -29,8 +31,6 @@ export function orderSnapshotFromRow(r: Record<string, unknown>): OrderLedgerSna
 export function orderSnapshotToUpdateRow(s: OrderLedgerSnapshotJson) {
   return {
     order_date: s.order_date,
-    cost_design_id: s.cost_design_id,
-    design_name: s.design_name,
     customer_name: s.customer_name,
     customer_phone: String(s.customer_phone ?? ""),
     shipment_tracking: String(s.shipment_tracking ?? ""),
@@ -46,6 +46,9 @@ export function orderSnapshotToUpdateRow(s: OrderLedgerSnapshotJson) {
     feedback: s.feedback,
     customer_behaviour: s.customer_behaviour,
     exclude_shipping_from_cost: s.exclude_shipping_from_cost,
-    units: s.units,
+    // Legacy fields for backward compatibility - use first item
+    cost_design_id: s.items?.[0]?.cost_design_id ?? s.cost_design_id,
+    design_name: s.items?.[0]?.design_name ?? s.design_name,
+    units: s.items?.[0]?.quantity ?? s.units,
   };
 }

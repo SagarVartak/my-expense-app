@@ -12,6 +12,7 @@ export type CostDesignSnapshot = {
   primer_cost: number;
   clearcoat_cost: number;
   key_caps_cost: number;
+  colour_cost: number;
   shipping: number;
   total_cost_price: number;
 };
@@ -26,6 +27,7 @@ export function snapshotFromDbRow(row: Record<string, unknown>): CostDesignSnaps
   const primer_cost = num(row.primer_cost);
   const clearcoat_cost = num(row.clearcoat_cost);
   const key_caps_cost = num(row.key_caps_cost);
+  const colour_cost = num(row.colour_cost);
   const shipping = num(row.shipping);
   const total_cost_price = computeTotalCostPrice({
     print_weight_g,
@@ -37,6 +39,7 @@ export function snapshotFromDbRow(row: Record<string, unknown>): CostDesignSnaps
     primer_cost,
     clearcoat_cost,
     key_caps_cost,
+    colour_cost,
     shipping,
   });
   return {
@@ -50,6 +53,7 @@ export function snapshotFromDbRow(row: Record<string, unknown>): CostDesignSnaps
     primer_cost,
     clearcoat_cost,
     key_caps_cost,
+    colour_cost,
     shipping,
     total_cost_price,
   };
@@ -66,6 +70,7 @@ export function snapshotFromRequestBody(body: Record<string, unknown>): CostDesi
   const primer_cost = num(body.primer_cost);
   const clearcoat_cost = num(body.clearcoat_cost);
   const key_caps_cost = num(body.key_caps_cost);
+  const colour_cost = num(body.colour_cost);
   const shipping = num(body.shipping);
   const total_cost_price = computeTotalCostPrice({
     print_weight_g,
@@ -77,6 +82,7 @@ export function snapshotFromRequestBody(body: Record<string, unknown>): CostDesi
     primer_cost,
     clearcoat_cost,
     key_caps_cost,
+    colour_cost,
     shipping,
   });
   return {
@@ -90,6 +96,7 @@ export function snapshotFromRequestBody(body: Record<string, unknown>): CostDesi
     primer_cost,
     clearcoat_cost,
     key_caps_cost,
+    colour_cost,
     shipping,
     total_cost_price,
   };
@@ -107,6 +114,7 @@ export function snapshotToUpdateRow(s: CostDesignSnapshot) {
     primer_cost: s.primer_cost,
     clearcoat_cost: s.clearcoat_cost,
     key_caps_cost: s.key_caps_cost,
+    colour_cost: s.colour_cost,
     shipping: s.shipping,
     total_cost_price: s.total_cost_price,
   };

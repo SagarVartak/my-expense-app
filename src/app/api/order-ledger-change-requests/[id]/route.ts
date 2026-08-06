@@ -3,13 +3,18 @@ import { insertAuditLog } from "@/lib/auditLog";
 import { getSessionUser } from "@/lib/auth";
 import { orderSnapshotToUpdateRow } from "@/lib/orderLedgerSnapshots";
 import { updateOrderLedgerWithSchemaFallback } from "@/lib/orderLedgerSchemaFallback";
-import type { OrderLedgerSnapshotJson } from "@/lib/types";
+import type { OrderLedgerSnapshotJson, OrderLedgerItemSnapshot } from "@/lib/types";
 import { getServerSupabase } from "@/lib/serverSupabase";
+
+function num(v: unknown, def = 0): number {
+  const n = typeof v === "number" ? v : parseFloat(String(v ?? ""));
+  return Number.isFinite(n) ? n : def;
+}
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const user = await getSessionUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (user.role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!["admin", "manager"].includes(user.role)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const { id } = await params;
   if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 });
@@ -57,6 +62,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       return NextResponse.json({ ok: true });
     }
 
+    // Approve: update order and items
     const updatePayload = orderSnapshotToUpdateRow(proposed_payload);
     const { data: updated, error: applyErr } = await updateOrderLedgerWithSchemaFallback(
       supabase,
@@ -65,18 +71,39 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     );
     if (applyErr) return NextResponse.json({ error: String((applyErr as { message?: string }).message ?? applyErr) }, { status: 500 });
 
-    await supabase.from("printed_inventory_entries").delete().eq("order_id", orderId);
-    const cid = proposed_payload.cost_design_id;
-    if (cid) {
-      const u = Math.max(1, Math.floor(Number(proposed_payload.units ?? 1)));
-      const { error: invErr } = await supabase.from("printed_inventory_entries").insert({
-        cost_design_id: cid,
-        quantity: -u,
-        printer_name: `Order ${proposed_payload.order_uid}`,
-        created_by: user.username,
+    // Delete old order items and insert new ones
+    await supabase.from("order_ledger_items").delete().eq("order_id", orderId);
+    
+    // Update inventory for each item
+    const items = (proposed_payload.items ?? []) as OrderLedgerItemSnapshot[];
+    for (const item of items) {
+      const cid = item.cost_design_id;
+      const u = Math.max(1, Math.floor(Number(item.quantity ?? 1)));
+      
+      // Delete old inventory entries for this order
+      await supabase.from("printed_inventory_entries").delete().eq("order_id", orderId);
+      
+      // Insert new inventory deduction
+      if (cid) {
+        const { error: invErr } = await supabase.from("printed_inventory_entries").insert({
+          cost_design_id: cid,
+          quantity: -u,
+          printer_name: `Order ${proposed_payload.order_uid}`,
+          created_by: user.username,
+          order_id: orderId,
+        });
+        if (invErr) return NextResponse.json({ error: invErr.message }, { status: 500 });
+      }
+      
+      // Insert order item
+      const { error: itemErr } = await supabase.from("order_ledger_items").insert({
         order_id: orderId,
+        cost_design_id: cid,
+        quantity: u,
+        unit_cost_price: item.unit_cost_price,
+        unit_selling_price: item.unit_selling_price,
       });
-      if (invErr) return NextResponse.json({ error: invErr.message }, { status: 500 });
+      if (itemErr) return NextResponse.json({ error: itemErr.message }, { status: 500 });
     }
 
     const { error: reqUpdErr } = await supabase
@@ -91,10 +118,11 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     if (reqUpdErr) return NextResponse.json({ error: reqUpdErr.message }, { status: 500 });
 
     const money = (n: number) => (Number.isFinite(n) ? n.toFixed(2) : "0.00");
+    const itemsDesc = items.map((i) => `${i.design_name} ×${i.quantity}`).join(", ");
     await insertAuditLog(
       user.username,
       "APPROVE_ORDER_EDIT",
-      `Approved order edit for ${proposed_payload.order_uid} (requested by ${String(reqRow.requested_by)}) — total ₹${money(previous_snapshot.total_cost_price)} → ₹${money(proposed_payload.total_cost_price)}`,
+      `Approved order edit for ${proposed_payload.order_uid} (requested by ${String(reqRow.requested_by)}) — items: ${itemsDesc} — total ₹${money(previous_snapshot.total_cost_price)} → ₹${money(proposed_payload.total_cost_price)}`,
     );
 
     return NextResponse.json({ order: updated, requestId: id });
