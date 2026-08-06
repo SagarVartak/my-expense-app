@@ -4,6 +4,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "react-toastify";
 import type { CostDesign, PrintedInventoryDesignRow, SessionUser } from "@/lib/types";
 import { clientFetch } from "@/lib/clientFetch";
+import { DataTable } from "@/components/ui/data-table";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { fmtCurrency } from "@/lib/currencyFormat";
+import { CellContext } from "@tanstack/react-table";
 
 function fmtShortDate(iso: string | null) {
   if (!iso) return "—";
@@ -107,10 +112,10 @@ export default function PrintedInventory({ refreshSignal, onMutated }: Props) {
 
   const canManageInventory = currentUser?.role === "admin" || currentUser?.role === "manager";
 
-  const handleDeleteEntry = async (entryId: string) => {
-    if (!window.confirm("Delete this inventory entry?")) return;
+  const handleDeleteEntry = async (costDesignId: string) => {
+    if (!window.confirm("Delete all inventory entries for this design?")) return;
     try {
-      const res = await fetch(`/api/printed-inventory/${entryId}`, { method: "DELETE" });
+      const res = await fetch(`/api/printed-inventory/${costDesignId}`, { method: "DELETE" });
       const data = await res.json();
       if (!res.ok) {
         toast.error(data.error || "Could not delete.");
@@ -126,6 +131,64 @@ export default function PrintedInventory({ refreshSignal, onMutated }: Props) {
 
   const withStock = rows.filter((r) => r.total_printed > 0);
   const totalUnits = rows.reduce((s, r) => s + r.total_printed, 0);
+
+  const columns = [
+    {
+      accessorKey: "keychain_design",
+      header: "Design",
+      cell: (info: any) => (
+        <span className="design-name-cell" title={info.getValue()}>
+          {info.getValue()}
+        </span>
+      ),
+    },
+    {
+      accessorKey: "total_printed",
+      header: "Net Qty",
+      cell: (info: any) => info.getValue(),
+    },
+    {
+      id: "coloured",
+      header: "Coloured",
+      cell: (info: any) => {
+        const design = info.row.original;
+        const designData = info.row.original.designs?.find((d: any) => d.id === info.row.original.cost_design_id);
+        const isColoured = (designData?.colour_cost ?? 0) > 0;
+        return isColoured ? (
+          <Badge variant="success">● Coloured</Badge>
+        ) : (
+          <span className="text-muted-foreground">○ Plain</span>
+        );
+      },
+    },
+    {
+      accessorKey: "last_printer_name",
+      header: "Last Printer",
+      cell: (info: any) => info.getValue()?.trim() || "—",
+    },
+    {
+      accessorKey: "last_print_at",
+      header: "Last Print",
+      cell: (info: any) => fmtShortDate(info.getValue()),
+    },
+    {
+      id: "actions",
+      header: "Action",
+      cell: (info: any) => {
+        if (!canManageInventory) return null;
+        return (
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={() => handleDeleteEntry(info.row.original.cost_design_id)}
+            title="Delete all entries for this design"
+          >
+            Delete
+          </Button>
+        );
+      },
+    },
+  ];
 
   return (
     <>
@@ -189,77 +252,27 @@ export default function PrintedInventory({ refreshSignal, onMutated }: Props) {
         <p className="calc-lead muted" style={{ marginBottom: 12 }}>
           {loading && !loaded.current
             ? "Loading…"
-            : `${rows.length} saved design${rows.length === 1 ? "" : "s"} · ${totalUnits} net unit${totalUnits === 1 ? "" : "s"} (prints − orders) · ${withStock.length} design${withStock.length === 1 ? "" : "s"} with positive stock.`}
+            : `${rows.length} saved design${rows.length === 1 ? "" : "s"} · ${rows.reduce((s, r) => s + r.total_printed, 0)} net unit${rows.reduce((s, r) => s + r.total_printed, 0) === 1 ? "" : "s"} (prints − orders) · ${rows.filter((r) => r.total_printed > 0).length} design${rows.filter((r) => r.total_printed > 0).length === 1 ? "" : "s"} with positive stock.`}
         </p>
-        <div className="design-table-wrap">
-          <table className="design-table">
-            <thead>
-              <tr>
-                <th className="design-th-design">Design</th>
-                <th className="amt">Net qty</th>
-                <th>Coloured</th>
-                <th>Last printer</th>
-                <th>Last print</th>
-                {canManageInventory ? <th className="design-th-action">Action</th> : null}
-              </tr>
-            </thead>
-            <tbody>
-              {loading && !loaded.current ? (
-                <tr>
-                  <td colSpan={canManageInventory ? 6 : 5} className="muted">
-                    Loading inventory…
-                  </td>
-                </tr>
-              ) : rows.length === 0 ? (
-                <tr>
-                  <td colSpan={canManageInventory ? 6 : 5} className="muted">
-                    No saved designs. Add designs under Cost Price Calculator first.
-                  </td>
-                </tr>
-              ) : (
-                rows.map((r) => {
-                  const design = designs.find((d) => d.id === r.cost_design_id);
-                  const isColoured = (design?.colour_cost ?? 0) > 0;
-                  return (
-                    <tr key={r.cost_design_id}>
-                      <td style={{ maxWidth: 220 }} title={r.keychain_design}>
-                        <span className="design-name-cell">{r.keychain_design}</span>
-                      </td>
-                      <td className="amt">{r.total_printed}</td>
-                      <td style={{ textAlign: "center" }}>
-                        {isColoured ? (
-                          <span style={{ color: "#7dffc4" }}>● Coloured</span>
-                        ) : (
-                          <span className="muted">○ Plain</span>
-                        )}
-                      </td>
-                      <td className="muted" style={{ fontSize: 13 }}>
-                        {r.last_printer_name?.trim() ? r.last_printer_name : "—"}
-                      </td>
-                      <td className="muted" style={{ fontSize: 12, whiteSpace: "nowrap" }}>
-                        {fmtShortDate(r.last_print_at)}
-                      </td>
-                      {canManageInventory ? (
-                        <td>
-                          <div className="design-table-actions">
-                            <button
-                              className="delete"
-                              type="button"
-                              onClick={() => void handleDeleteEntry(r.cost_design_id)}
-                              title="Delete all entries for this design"
-                            >
-                              Delete
-                            </button>
-                          </div>
-                        </td>
-                      ) : null}
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
+
+        <DataTable
+          columns={columns}
+          data={rows}
+          searchKey="global"
+          filterableColumns={["keychain_design"]}
+          sortable
+          selectable={false}
+          pagination
+          pageSize={10}
+          className="w-full"
+        />
+
+        {loading && !loaded.current && (
+          <div className="text-center py-8 text-muted-foreground">Loading inventory…</div>
+        )}
+        {rows.length === 0 && !loading && (
+          <div className="text-center py-8 text-muted-foreground">No saved designs. Add designs under Cost Price Calculator first.</div>
+        )}
       </section>
     </>
   );
