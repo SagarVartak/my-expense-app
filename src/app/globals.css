@@ -37,9 +37,9 @@
 
 body {
   margin: 0;
-  padding-left: env(safe-area-inset-left, 0px);
+  /* padding-left: env(safe-area-inset-left, 0px);
   padding-right: env(safe-area-inset-right, 0px);
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px); */
   font-family: var(--font-sans);
   background-color: var(--bg);
   color: var(--text);
@@ -319,6 +319,126 @@ a.nav-btn-link:hover {
   flex-direction: column;
   gap: 20px;
 }
+.app-body-inner {
+  display: flex;
+  flex: 1;
+  gap: 20px;
+  min-width: 0;
+}
+.app-sidebar {
+  position: relative;
+  z-index: 2;
+  width: 240px;
+  flex-shrink: 0;
+  padding: 20px 14px 28px 18px;
+  border-right: 1px solid var(--border-strong);
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.deadline-sidebar {
+  width: 300px;
+  max-width: 300px;
+  flex-shrink: 0;
+  background: color-mix(in srgb, var(--surface) 90%, transparent);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  height: fit-content;
+  max-height: calc(100vh - 200px);
+  overflow-y: auto;
+  position: sticky;
+  top: 100px;
+}
+.deadline-sidebar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+.deadline-sidebar-header h3 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+.deadline-count {
+  background: var(--accent-soft);
+  color: var(--accent);
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.deadline-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.deadline-item {
+  border-left: 3px solid var(--border);
+  padding-left: 12px;
+}
+.deadline-main {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.deadline-order-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.deadline-order-id {
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--text);
+}
+.deadline-customer {
+  font-size: 11px;
+  color: var(--muted);
+}
+.deadline-date-status {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.deadline-date {
+  font-size: 11px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.deadline-days {
+  font-size: 10px;
+}
+.deadline-status-select {
+  font-size: 11px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid;
+  cursor: pointer;
+  width: 100%;
+  background: inherit;
+  color: inherit;
+}
+@media (max-width: 1100px) {
+  .app-body-inner {
+    flex-direction: column;
+  }
+  .deadline-sidebar {
+    width: 100%;
+    max-width: none;
+    position: static;
+    max-height: none;
+  }
+}
 @media (max-width: 600px) {
   .app-main {
     padding: 16px max(14px, env(safe-area-inset-left)) max(32px, env(safe-area-inset-bottom))
@@ -588,12 +708,13 @@ a.nav-btn-link:hover {
   overscroll-behavior-x: contain;
 }
 table.design-table {
-  font-size: 12px;
-  min-width: 1400px;
+  font-size: 11px;
+  min-width: 1000px;
+  width: 100%;
 }
 /* Approval tables: allow horizontal scroll on narrow viewports */
 table.design-table.design-table--approval {
-  min-width: 720px;
+  min-width: 640px;
   width: 100%;
 }
 table.design-table.design-table--approval thead th,
@@ -614,22 +735,22 @@ table.design-table thead th {
   white-space: normal;
   vertical-align: bottom;
   line-height: 1.25;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.02em;
   color: var(--muted);
   text-transform: none;
-  max-width: 96px;
+  max-width: 85px;
   hyphens: auto;
 }
 table.design-table thead th.design-th-design {
-  max-width: 120px;
-  min-width: 100px;
+  max-width: 110px;
+  min-width: 90px;
   text-align: left;
 }
 table.design-table thead th.design-th-action {
-  max-width: 72px;
-  min-width: 64px;
+  max-width: 64px;
+  min-width: 56px;
   text-align: center;
 }
 table.design-table thead th.amt {
@@ -637,6 +758,8 @@ table.design-table thead th.amt {
 }
 table.design-table tbody td {
   white-space: nowrap;
+  font-size: 11px;
+}
 }
 table.design-table th,
 table.design-table td {
@@ -683,21 +806,23 @@ table.design-table tbody td:first-child {
   overscroll-behavior-x: contain;
 }
 table.order-table {
-  font-size: 12px;
-  min-width: 2000px;
+  font-size: 11px;
+  min-width: 1200px;
+  width: 100%;
 }
 table.order-table thead th {
   white-space: normal;
   vertical-align: bottom;
   line-height: 1.25;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
   color: var(--muted);
-  max-width: 104px;
+  max-width: 90px;
+  hyphens: auto;
 }
 table.order-table thead th.design-th-action {
-  max-width: 72px;
-  min-width: 64px;
+  max-width: 64px;
+  min-width: 56px;
   text-align: center;
 }
 table.order-table thead th.amt {
@@ -705,6 +830,7 @@ table.order-table thead th.amt {
 }
 table.order-table tbody td {
   white-space: nowrap;
+  font-size: 11px;
 }
 table.order-table tbody td.order-td-wrap {
   white-space: normal;
@@ -712,24 +838,24 @@ table.order-table tbody td.order-td-wrap {
 }
 table.order-table th,
 table.order-table td {
-  padding: 8px 6px;
+  padding: 6px 5px;
 }
 .design-table-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 4px;
   align-items: center;
 }
 .design-table-actions button:not(.delete) {
   border: 1px solid var(--accent-border);
   border-radius: var(--radius-sm);
-  padding: 8px 14px;
-  min-height: 40px;
-  font-weight: 600;
+  padding: 6px 10px;
+  min-height: 32px;
+  font-weight: 500;
   cursor: pointer;
   color: var(--text);
   background: var(--accent-soft);
-  font-size: 0.8125rem;
+  font-size: 0.75rem;
   box-shadow: none;
 }
 .design-table-actions button:not(.delete):hover:not(:disabled) {

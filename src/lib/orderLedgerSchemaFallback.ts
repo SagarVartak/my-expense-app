@@ -13,12 +13,16 @@ const INSERT_OPTIONAL_COLUMNS = new Set([
   "units",
   "customer_phone",
   "shipment_tracking",
+  "deadline_date",
+  "deadline_status",
 ]);
 const UPDATE_OPTIONAL_COLUMNS = new Set([
   "exclude_shipping_from_cost",
   "units",
   "customer_phone",
   "shipment_tracking",
+  "deadline_date",
+  "deadline_status",
 ]);
 
 function isDuplicateKeyError(err: unknown): boolean {

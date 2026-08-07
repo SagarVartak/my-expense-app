@@ -119,6 +119,8 @@ export type CostDesignChangeRequest = {
 
 export type OrderApprovalStatus = "pending" | "approved" | "rejected";
 
+export type DeadlineStatus = "not_started" | "print_started" | "print_done" | "in_transit" | "delivered" | "cancelled";
+
 export type OrderLedgerSnapshotJson = {
   order_uid: string;
   order_date: string;
@@ -144,6 +146,9 @@ export type OrderLedgerSnapshotJson = {
   exclude_shipping_from_cost: boolean;
   /** @deprecated Use items instead for multi-design orders */
   units: number;
+  /** Deadline fields */
+  deadline_date: string | null;
+  deadline_status: DeadlineStatus;
   /** New: line items for multi-design orders */
   items?: OrderLedgerItemSnapshot[];
 };
@@ -185,6 +190,9 @@ export type OrderLedgerEntry = {
   approval_status?: OrderApprovalStatus;
   /** @deprecated Use items instead for multi-design orders */
   units?: number;
+  /** Deadline fields */
+  deadline_date?: string | null;
+  deadline_status?: DeadlineStatus;
   /** New: line items for multi-design orders */
   items?: OrderLedgerItem[];
 };

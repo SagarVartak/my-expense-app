@@ -5,11 +5,21 @@ import { createPortal } from "react-dom";
 import { toast } from "react-toastify";
 import InlineSpinner from "@/components/InlineSpinner";
 import { fmtOrderMoney } from "@/lib/orderLedgerDisplay";
-import type { CostDesign, OrderLedgerEntry, OrderLedgerItem } from "@/lib/types";
+import type { CostDesign, OrderLedgerEntry, OrderLedgerItem, DeadlineStatus } from "@/lib/types";
 
 const PAYMENT_METHODS = ["Cash", "Card", "Bank Transfer", "UPI", "Wallet", "Other"];
 const PAYMENT_STATUS = ["Pending", "Paid", "Partial", "Refunded", "Failed"];
 const DELIVERY_STATUS = ["Pending", "Processing", "Shipped", "In transit", "Delivered", "Cancelled", "Returned"];
+const DEADLINE_STATUSES: DeadlineStatus[] = ["not_started", "print_started", "print_done", "in_transit", "delivered", "cancelled"];
+
+const DEADLINE_LABELS: Record<DeadlineStatus, string> = {
+  not_started: "Not Started",
+  print_started: "Print Started",
+  print_done: "Print Done",
+  in_transit: "In Transit",
+  delivered: "Delivered",
+  cancelled: "Cancelled",
+};
 
 type Props = {
   open: boolean;
@@ -49,6 +59,8 @@ export default function EditOrderModal({ open, order, currencySymbol, onClose, o
   const [feedback, setFeedback] = useState("");
   const [customerBehaviour, setCustomerBehaviour] = useState("");
   const [excludeShippingFromCost, setExcludeShippingFromCost] = useState(false);
+  const [deadlineDate, setDeadlineDate] = useState("");
+  const [deadlineStatus, setDeadlineStatus] = useState<DeadlineStatus>("not_started");
 
   const loadDesigns = useCallback(async () => {
     setLoadingDesigns(true);
@@ -82,6 +94,8 @@ export default function EditOrderModal({ open, order, currencySymbol, onClose, o
     setFeedback(order.feedback ?? "");
     setCustomerBehaviour(order.customer_behaviour ?? "");
     setExcludeShippingFromCost(order.exclude_shipping_from_cost === true);
+    setDeadlineDate(order.deadline_date ? String(order.deadline_date).slice(0, 10) : "");
+    setDeadlineStatus((order.deadline_status as DeadlineStatus) || "not_started");
 
     // Load items from order.items or fall back to legacy single-design fields
     if (order.items && order.items.length > 0) {
@@ -168,6 +182,8 @@ export default function EditOrderModal({ open, order, currencySymbol, onClose, o
           feedback: feedback.trim(),
           customer_behaviour: customerBehaviour.trim(),
           exclude_shipping_from_cost: excludeShippingFromCost,
+          deadline_date: deadlineDate || null,
+          deadline_status: deadlineStatus,
         }),
       });
       const data = await res.json();
@@ -397,7 +413,7 @@ export default function EditOrderModal({ open, order, currencySymbol, onClose, o
               onChange={(e) => setExcludeShippingFromCost(e.target.checked)}
               disabled={items.length === 0 || loadingDesigns}
             />
-            <span>Exclude saved design shipping from this order's cost.</span>
+            <span>Exclude saved design shipping from this order&apos;s cost.</span>
           </label>
         </div>
 
@@ -468,6 +484,24 @@ export default function EditOrderModal({ open, order, currencySymbol, onClose, o
               ))}
             </select>
           </div>
+        </div>
+
+        <div className="row3" style={{ marginTop: 10 }}>
+          <div>
+            <label htmlFor="eom-deadline">Deadline date</label>
+            <input id="eom-deadline" type="date" value={deadlineDate} onChange={(e) => setDeadlineDate(e.target.value)} />
+          </div>
+          <div>
+            <label htmlFor="eom-deadline-st">Deadline status</label>
+            <select id="eom-deadline-st" value={deadlineStatus} onChange={(e) => setDeadlineStatus(e.target.value as DeadlineStatus)}>
+              {DEADLINE_STATUSES.map((s) => (
+                <option key={s} value={s}>
+                  {DEADLINE_LABELS[s]}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div aria-hidden />
         </div>
 
         <div style={{ marginTop: 10 }}>

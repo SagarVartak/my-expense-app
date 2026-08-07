@@ -155,6 +155,9 @@ export async function POST(req: Request) {
     const net_profit = grandTotalSelling - grandTotalCost;
 
     // Insert order
+    const deadline_date = body.deadline_date ? String(body.deadline_date).trim() : null;
+    const deadline_status = body.deadline_status ? String(body.deadline_status).trim() : "not_started";
+
     const row: OrderInsertRow = {
       order_uid: generateOrderUid(),
       order_date,
@@ -173,6 +176,8 @@ export async function POST(req: Request) {
       feedback: String(body.feedback ?? "").trim(),
       customer_behaviour: String(body.customer_behaviour ?? "").trim(),
       exclude_shipping_from_cost,
+      deadline_date,
+      deadline_status,
       created_by: user.username,
       approval_status: "pending",
       // Legacy fields for backward compatibility - use first item
