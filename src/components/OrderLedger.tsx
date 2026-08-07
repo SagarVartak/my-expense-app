@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "react-toastify";
 import InlineSpinner from "@/components/InlineSpinner";
 import { fmtOrderMoney } from "@/lib/orderLedgerDisplay";
-import type { CostDesign, OrderLedgerItem } from "@/lib/types";
+import type { CostDesign, OrderLedgerItem, DeadlineStatus } from "@/lib/types";
 
 type Props = {
   currencySymbol: string;
@@ -14,6 +14,16 @@ type Props = {
 const PAYMENT_METHODS = ["Cash", "Card", "Bank Transfer", "UPI", "Wallet", "Other"];
 const PAYMENT_STATUS = ["Pending", "Paid", "Partial", "Refunded", "Failed"];
 const DELIVERY_STATUS = ["Pending", "Processing", "Shipped", "In transit", "Delivered", "Cancelled", "Returned"];
+const DEADLINE_STATUSES: DeadlineStatus[] = ["not_started", "print_started", "print_done", "in_transit", "delivered", "cancelled"];
+
+const DEADLINE_LABELS: Record<DeadlineStatus, string> = {
+  not_started: "Not Started",
+  print_started: "Print Started",
+  print_done: "Print Done",
+  in_transit: "In Transit",
+  delivered: "Delivered",
+  cancelled: "Cancelled",
+};
 
 function todayISO() {
   const d = new Date();
@@ -46,6 +56,8 @@ export default function OrderLedger({ currencySymbol, onOrderMutated }: Props) {
   const [feedback, setFeedback] = useState("");
   const [customerBehaviour, setCustomerBehaviour] = useState("");
   const [excludeShippingFromCost, setExcludeShippingFromCost] = useState(false);
+  const [deadlineDate, setDeadlineDate] = useState("");
+  const [deadlineStatus, setDeadlineStatus] = useState<DeadlineStatus>("not_started");
 
   const loadDesigns = useCallback(async () => {
     setLoadingDesigns(true);
@@ -100,6 +112,8 @@ export default function OrderLedger({ currencySymbol, onOrderMutated }: Props) {
     setFeedback("");
     setCustomerBehaviour("");
     setExcludeShippingFromCost(false);
+    setDeadlineDate("");
+    setDeadlineStatus("not_started");
   };
 
   const addItem = () => {
@@ -160,6 +174,8 @@ export default function OrderLedger({ currencySymbol, onOrderMutated }: Props) {
           feedback: feedback.trim(),
           customer_behaviour: customerBehaviour.trim(),
           exclude_shipping_from_cost: excludeShippingFromCost,
+          deadline_date: deadlineDate || null,
+          deadline_status: deadlineStatus,
         }),
       });
       const data = await res.json();
@@ -187,8 +203,8 @@ export default function OrderLedger({ currencySymbol, onOrderMutated }: Props) {
         sidebar.
       </p>
       <p className="calc-lead muted" style={{ marginTop: 8 }}>
-        Add multiple keychain designs to a single order. Each item uses the saved design's total cost (optionally without
-        the design's shipping line for friends / hand delivery). Net profit = total selling price − total cost used for this
+        Add multiple keychain designs to a single order. Each item uses the saved design&apos;s total cost (optionally without
+        the design&apos;s shipping line for friends / hand delivery). Net profit = total selling price − total cost used for this
         order. When an admin approves the order, the quantities are deducted from printed inventory for each design.
       </p>
 
@@ -366,7 +382,7 @@ export default function OrderLedger({ currencySymbol, onOrderMutated }: Props) {
             disabled={items.length === 0 || loadingDesigns}
           />
           <span>
-            Don't include shipping fee from saved designs in this order's cost (e.g. friends / you deliver — no
+            Don&apos;t include shipping fee from saved designs in this order&apos;s cost (e.g. friends / you deliver — no
             shipping charged).
           </span>
         </label>
@@ -432,6 +448,24 @@ export default function OrderLedger({ currencySymbol, onOrderMutated }: Props) {
             ))}
           </select>
         </div>
+      </div>
+
+      <div className="row3" style={{ marginTop: 10 }}>
+        <div>
+          <label htmlFor="ol-deadline">Deadline date</label>
+          <input id="ol-deadline" type="date" value={deadlineDate} onChange={(e) => setDeadlineDate(e.target.value)} />
+        </div>
+        <div>
+          <label htmlFor="ol-deadline-st">Deadline status</label>
+          <select id="ol-deadline-st" value={deadlineStatus} onChange={(e) => setDeadlineStatus(e.target.value as DeadlineStatus)}>
+            {DEADLINE_STATUSES.map((s) => (
+              <option key={s} value={s}>
+                {DEADLINE_LABELS[s]}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div aria-hidden />
       </div>
 
       <div style={{ marginTop: 10 }}>

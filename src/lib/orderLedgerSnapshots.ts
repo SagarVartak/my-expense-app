@@ -1,4 +1,4 @@
-import type { OrderLedgerSnapshotJson, OrderLedgerItemSnapshot } from "@/lib/types";
+import type { OrderLedgerSnapshotJson, OrderLedgerItemSnapshot, DeadlineStatus } from "@/lib/types";
 
 export function orderSnapshotFromRow(r: Record<string, unknown>): OrderLedgerSnapshotJson {
   const items = r.items as OrderLedgerItemSnapshot[] | undefined;
@@ -22,6 +22,8 @@ export function orderSnapshotFromRow(r: Record<string, unknown>): OrderLedgerSna
     feedback: String(r.feedback ?? ""),
     customer_behaviour: String(r.customer_behaviour ?? ""),
     exclude_shipping_from_cost: Boolean(r.exclude_shipping_from_cost),
+    deadline_date: r.deadline_date != null ? String(r.deadline_date).slice(0, 10) : null,
+    deadline_status: (r.deadline_status as DeadlineStatus) ?? "not_started",
     units: Math.max(1, Math.floor(Number(r.units ?? 1))),
     items: items || [],
   };
@@ -46,6 +48,8 @@ export function orderSnapshotToUpdateRow(s: OrderLedgerSnapshotJson) {
     feedback: s.feedback,
     customer_behaviour: s.customer_behaviour,
     exclude_shipping_from_cost: s.exclude_shipping_from_cost,
+    deadline_date: s.deadline_date,
+    deadline_status: s.deadline_status,
     // Legacy fields for backward compatibility - use first item
     cost_design_id: s.items?.[0]?.cost_design_id ?? s.cost_design_id,
     design_name: s.items?.[0]?.design_name ?? s.design_name,

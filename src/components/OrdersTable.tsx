@@ -4,7 +4,25 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "react-toastify";
 import EditOrderModal from "@/components/EditOrderModal";
 import { fmtOrderDate, fmtOrderMoney } from "@/lib/orderLedgerDisplay";
-import type { OrderLedgerEntry, SessionUser } from "@/lib/types";
+import type { OrderLedgerEntry, SessionUser, DeadlineStatus } from "@/lib/types";
+
+const DEADLINE_LABELS: Record<DeadlineStatus, string> = {
+  not_started: "Not Started",
+  print_started: "Print Started",
+  print_done: "Print Done",
+  in_transit: "In Transit",
+  delivered: "Delivered",
+  cancelled: "Cancelled",
+};
+
+const DEADLINE_COLORS: Record<DeadlineStatus, { bg: string; text: string; border: string }> = {
+  not_started: { bg: "rgba(240, 180, 41, 0.15)", text: "#f0d090", border: "rgba(240, 180, 41, 0.4)" },
+  print_started: { bg: "rgba(59, 130, 246, 0.15)", text: "#93c5fd", border: "rgba(59, 130, 246, 0.4)" },
+  print_done: { bg: "rgba(34, 197, 94, 0.15)", text: "#86efac", border: "rgba(34, 197, 94, 0.4)" },
+  in_transit: { bg: "rgba(168, 85, 247, 0.15)", text: "#d8b4fe", border: "rgba(168, 85, 247, 0.4)" },
+  delivered: { bg: "rgba(34, 197, 94, 0.1)", text: "#86efac", border: "rgba(34, 197, 94, 0.3)" },
+  cancelled: { bg: "rgba(239, 68, 68, 0.1)", text: "#fca5a5", border: "rgba(239, 68, 68, 0.3)" },
+};
 
 type Props = {
   currencySymbol: string;
@@ -121,7 +139,7 @@ export default function OrdersTable({
     }
   };
 
-  const colSpan = 21;
+  const colSpan = 23;
 
   return (
     <section className="card">
@@ -148,6 +166,8 @@ export default function OrdersTable({
               <th>Order ID</th>
               <th>Approval</th>
               <th>Date</th>
+              <th>Deadline</th>
+              <th>Deadline Status</th>
               <th>Items</th>
               <th>Total Qty</th>
               <th>Customer name</th>
@@ -221,6 +241,29 @@ orders.map((o) => {
                       </span>
                     </td>
                     <td>{fmtOrderDate(o.order_date)}</td>
+                    <td style={{ fontWeight: 500 }}>
+                      {o.deadline_date ? fmtOrderDate(o.deadline_date) : <span className="muted">—</span>}
+                    </td>
+                    <td>
+                      {o.deadline_status ? (
+                        <span
+                          style={{
+                            display: "inline-block",
+                            padding: "4px 8px",
+                            borderRadius: 4,
+                            fontSize: 11,
+                            fontWeight: 500,
+                            background: DEADLINE_COLORS[o.deadline_status as DeadlineStatus]?.bg || "transparent",
+                            color: DEADLINE_COLORS[o.deadline_status as DeadlineStatus]?.text || "var(--muted)",
+                            border: `1px solid ${DEADLINE_COLORS[o.deadline_status as DeadlineStatus]?.border || "transparent"}`,
+                          }}
+                        >
+                          {DEADLINE_LABELS[o.deadline_status as DeadlineStatus] || o.deadline_status}
+                        </span>
+                      ) : (
+                        <span className="muted">—</span>
+                      )}
+                    </td>
                     <td style={{ maxWidth: 200 }}>
                       {itemsDisplay}
                     </td>

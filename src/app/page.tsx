@@ -21,7 +21,9 @@ import OrdersTable from "@/components/OrdersTable";
 import PrintedInventory from "@/components/PrintedInventory";
 import { clientFetch } from "@/lib/clientFetch";
 import { APP_DESCRIPTION, APP_NAME } from "@/lib/appMeta";
-import type { AppUser, AuditLog, Expense, SessionUser, Role } from "@/lib/types";
+import type { AppUser, AuditLog, Expense, SessionUser, Role, OrderLedgerEntry } from "@/lib/types";
+import DeadlineSidebar from "@/components/DeadlineSidebar";
+import DeadlinesPage from "@/components/DeadlinesPage";
 
 type NavId =
   | "inventory"
@@ -31,6 +33,7 @@ type NavId =
   | "savedDesigns"
   | "orders"
   | "orderLedger"
+  | "deadlines"
   | "designChangeApprovals"
   | "orderApprovals"
   | "deletionApprovals"
@@ -74,6 +77,8 @@ export default function Home() {
   const [filterEndDate, setFilterEndDate] = useState("");
   const [filterEntryUid, setFilterEntryUid] = useState("");
   const [memberNames, setMemberNames] = useState<string[]>([]);
+  const [orders, setOrders] = useState<OrderLedgerEntry[]>([]);
+  const [ordersLoading, setOrdersLoading] = useState(true);
   const [expenseSaving, setExpenseSaving] = useState(false);
   const [expenseDeletingId, setExpenseDeletingId] = useState<string | null>(null);
   const [resetAllBusy, setResetAllBusy] = useState(false);
@@ -106,6 +111,7 @@ export default function Home() {
       savedDesigns: "savedDesigns",
       orders: "orders",
       orderLedger: "orderLedger",
+      deadlines: "deadlines",
       designApprovals: "designChangeApprovals",
       designChangeApprovals: "designChangeApprovals",
       orderApprovals: "orderApprovals",
@@ -189,6 +195,22 @@ export default function Home() {
     setMemberNames((data.names || []) as string[]);
   }, []);
 
+  const loadOrders = useCallback(async () => {
+    if (!currentUser) return;
+    setOrdersLoading(true);
+    try {
+      const res = await clientFetch("/api/order-ledger", { cache: "no-store" });
+      if (res.ok) {
+        const data = await res.json();
+        setOrders((data.orders || []) as OrderLedgerEntry[]);
+      }
+    } catch {
+      // ignore
+    } finally {
+      setOrdersLoading(false);
+    }
+  }, [currentUser]);
+
   const [approvedOrdersNetProfit, setApprovedOrdersNetProfit] = useState<number | null>(null);
   const [totalExpensesAll, setTotalExpensesAll] = useState<number | null>(null);
 
@@ -214,9 +236,10 @@ export default function Home() {
       await refreshLogs();
       await refreshUsers();
       await refreshMemberNames();
+      await loadOrders();
     };
     void run();
-  }, [currentUser, refreshExpenses, refreshSummaryMetrics, refreshLogs, refreshUsers, refreshMemberNames]);
+  }, [currentUser, refreshExpenses, refreshSummaryMetrics, refreshLogs, refreshUsers, refreshMemberNames, loadOrders]);
 
   useEffect(() => {
     if (!currentUser) return;
@@ -595,7 +618,8 @@ export default function Home() {
       </header>
 
       <div className="app-body">
-        <nav className="app-sidebar" aria-label="Main navigation">
+        <div className="app-body-inner">
+          <nav className="app-sidebar" aria-label="Main navigation">
           <div className="sidebar-label">Menu</div>
           <button type="button" className={navBtnClass("inventory")} onClick={() => setActiveNav("inventory")}>
             Inventory
@@ -617,6 +641,9 @@ export default function Home() {
           </button>
           <button type="button" className={navBtnClass("orderLedger")} onClick={() => setActiveNav("orderLedger")}>
             Order Ledger
+          </button>
+          <button type="button" className={navBtnClass("deadlines")} onClick={() => setActiveNav("deadlines")}>
+            Deadlines
           </button>
           {currentUser.role === "admin" || currentUser.role === "manager" ? (
             <>
@@ -912,6 +939,14 @@ export default function Home() {
             />
           ) : null}
 
+          {activeNav === "deadlines" ? (
+            <DeadlinesPage
+              currencySymbol={currencySymbol}
+              currentUser={currentUser!}
+              refreshSignal={orderLedgerRefresh}
+            />
+          ) : null}
+
           {activeNav === "designChangeApprovals" && currentUser.role === "admin" ? (
             <DesignChangeRequestsPanel
               currencySymbol={currencySymbol}
@@ -954,6 +989,8 @@ export default function Home() {
           ) : null}
         </main>
       </div>
+      <DeadlineSidebar orders={orders} />
+    </div>
     </div>
   );
 }
